@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+venv/
+ENV/
+env/
+
+# Databases
+*.db
+*.db-journal
+*.sqlite3
+
+# OS / Editor specifics
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Output Resumes
+Resumes/
+
+# Local Knowledge Base
+Knowledge Base/
+
+
