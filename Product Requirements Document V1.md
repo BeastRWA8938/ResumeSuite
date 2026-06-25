@@ -62,11 +62,13 @@ graph TD
 | :--- | :--- |
 | **PDF Generation:** Automated server-side PDF rendering so the user can download a compiled PDF. | **V2** |
 | **History Explorer:** Web-based UI to view, compare, and restore previously generated resumes. | **V2** |
+| **LaTeX Space Estimator:** A mechanism that dynamically calculates the approximate space consumed by selected points in the LaTeX layout, replacing raw bullet limits with space consumption metrics. | **V2** |
 | **AI Profile Insights Dashboard:** Domain mastery mapping, skill distribution profiling, and role-selection probability analytics with points-based visualizations that update dynamically with Vault changes. | **V2/V3** |
 | **Academic/Career Credentials:** Support for patents, conferences, certifications, and publications in the Vault and resume generator. | **V3/V4** |
 | **ATS Score Analysis:** Scoring the resume against the target JD and suggesting improvements. | **V3** |
 | **Semi-Automated Company Lookup:** Automating tech-stack/product context gathering using company names. | **V3** |
 | **Custom Template Support:** Uploading custom LaTeX templates with dynamic tags/placeholders. | **V5** |
+
 
 
 ---

@@ -51,11 +51,13 @@ The purpose of the Career Intelligence System (V1) is to establish a secure, loc
 ### 2.2 Out of Scope
 1. **Compilation Services:** Server-side compilation of LaTeX source to PDF (V2).
 2. **History UI Explorer:** Web UI for browsing, restoring, or viewing past resume drafts (V2).
-3. **AI Profile Insights Dashboard:** Analytical profile dashboard visualizing skill mastery, domain distributions, and role-selection probabilities based on Vault contents (V2/V3).
-4. **Credentials & Certifications:** Support for patents, conferences, certifications, and publications in the Vault or resume generator (V3/V4).
-5. **ATS Scoring:** Automatic scoring of the generated resume against the JD (V3).
-6. **Auto Company Analysis:** Web scraping/search of company tech stacks and products (V3).
-7. **Custom Templating:** User-uploaded custom LaTeX templates or template selection engines (V5).
+3. **LaTeX Space Estimator:** Layout space calculator predicting LaTeX page coverage of selected bullets and sections to replace hard bullet count rules (V2).
+4. **AI Profile Insights Dashboard:** Analytical profile dashboard visualizing skill mastery, domain distributions, and role-selection probabilities based on Vault contents (V2/V3).
+5. **Credentials & Certifications:** Support for patents, conferences, certifications, and publications in the Vault or resume generator (V3/V4).
+6. **ATS Scoring:** Automatic scoring of the generated resume against the JD (V3).
+7. **Auto Company Analysis:** Web scraping/search of company tech stacks and products (V3).
+8. **Custom Templating:** User-uploaded custom LaTeX templates or template selection engines (V5).
+
 
 
 ### 2.3 Assumptions
