@@ -63,6 +63,7 @@ graph TD
 | **PDF Generation:** Automated server-side PDF rendering so the user can download a compiled PDF. | **V2** |
 | **History Explorer:** Web-based UI to view, compare, and restore previously generated resumes. | **V2** |
 | **LaTeX Space Estimator:** A mechanism that dynamically calculates the approximate space consumed by selected points in the LaTeX layout, replacing raw bullet limits with space consumption metrics. | **V2** |
+| **Free Cloud Storage Syncing:** Optional, secure synchronization of the local career database to free cloud storage providers (e.g. Google Drive, Dropbox, or a free-tier cloud database) for multi-device backup. | **V2** |
 | **AI Profile Insights Dashboard:** Domain mastery mapping, skill distribution profiling, and role-selection probability analytics with points-based visualizations that update dynamically with Vault changes. | **V2/V3** |
 | **Academic/Career Credentials:** Support for patents, conferences, certifications, and publications in the Vault and resume generator. | **V3/V4** |
 | **ATS Score Analysis:** Scoring the resume against the target JD and suggesting improvements. | **V3** |
@@ -131,7 +132,7 @@ graph TD
 * **Performance:** Prioritize quality over generation speed. Fact extraction and resume tailoring can take up to **5 minutes** max if it ensures exceptionally robust, accurate, and high-quality outputs.
 * **Portability:** The entire application must be deployable via a simple docker command (e.g. `docker-compose up`) to ensure quick local setup.
 * **UI Responsiveness:** The Web UI should be responsive, modern, clean, and highly intuitive for desktop usage.
-* **Security & Privacy:** Since professional credentials and private career details are stored, all data must reside locally on the host machine. No telemetry or external cloud storage of vault details is permitted.
+* **Security & Privacy:** The application operates on a Local-First architecture. All career data resides locally on the host machine for offline capability. In future versions (V2), optional cloud sync to free cloud storage will be supported for multi-device backups. No telemetry is permitted.
 
 ---
 

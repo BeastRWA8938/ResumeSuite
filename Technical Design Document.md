@@ -52,11 +52,12 @@ The purpose of the Career Intelligence System (V1) is to establish a secure, loc
 1. **Compilation Services:** Server-side compilation of LaTeX source to PDF (V2).
 2. **History UI Explorer:** Web UI for browsing, restoring, or viewing past resume drafts (V2).
 3. **LaTeX Space Estimator:** Layout space calculator predicting LaTeX page coverage of selected bullets and sections to replace hard bullet count rules (V2).
-4. **AI Profile Insights Dashboard:** Analytical profile dashboard visualizing skill mastery, domain distributions, and role-selection probabilities based on Vault contents (V2/V3).
-5. **Credentials & Certifications:** Support for patents, conferences, certifications, and publications in the Vault or resume generator (V3/V4).
-6. **ATS Scoring:** Automatic scoring of the generated resume against the JD (V3).
-7. **Auto Company Analysis:** Web scraping/search of company tech stacks and products (V3).
-8. **Custom Templating:** User-uploaded custom LaTeX templates or template selection engines (V5).
+4. **Free Cloud Storage Syncing:** Optional, secure synchronization of the local database to free cloud storage providers (e.g. Google Drive, Dropbox, or a free cloud database) for multi-device backup (V2).
+5. **AI Profile Insights Dashboard:** Analytical profile dashboard visualizing skill mastery, domain distributions, and role-selection probabilities based on Vault contents (V2/V3).
+6. **Credentials & Certifications:** Support for patents, conferences, certifications, and publications in the Vault or resume generator (V3/V4).
+7. **ATS Scoring:** Automatic scoring of the generated resume against the JD (V3).
+8. **Auto Company Analysis:** Web scraping/search of company tech stacks and products (V3).
+9. **Custom Templating:** User-uploaded custom LaTeX templates or template selection engines (V5).
 
 
 
@@ -66,7 +67,7 @@ The purpose of the Career Intelligence System (V1) is to establish a secure, loc
 3. **No Multi-User Isolation:** The application is accessed by a single user via local port mapping. User authentication, access control lists, or remote multi-tenant features are not required.
 
 ### 2.4 Constraints
-1. **Strict Privacy/Security:** 100% local operation. All vault information must reside on the user's host machine. No telemetry or external cloud storage of vault details.
+1. **Strict Privacy/Security:** Local-First operation. All vault information resides locally on the user's host machine for primary access and offline capability. Future versions (V2) will support secure syncing with free cloud storage solutions. No telemetry is permitted.
 2. **Single Page Budget:** Content mapping must fit exactly on a single page using a strict 10-bullet ceiling.
 3. **Template Rigidity:** System strictly supports the "Jake's Resume" style LaTeX template for V1.
 4. **Quality Priority:** Performance speed is subordinated to output quality. Processing times up to 5 minutes are acceptable if they ensure robust, hallucination-free output.
