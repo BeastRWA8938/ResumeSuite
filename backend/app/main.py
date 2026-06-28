@@ -1,10 +1,21 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.persistence.db import init_db
+from app.api.profile import router as profile_router
+from app.api.education import router as education_router
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize SQLite database and map SQLModel schema tables
+    init_db()
+    yield
 
 app = FastAPI(
     title="Career Intelligence System API",
     description="Local-First Career Memory and Resume Tailoring Backend Service",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Configure allowed origins for local development
@@ -20,6 +31,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register endpoints routers
+app.include_router(profile_router)
+app.include_router(education_router)
 
 @app.get("/")
 def read_root():
