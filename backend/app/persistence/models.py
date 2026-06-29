@@ -31,3 +31,47 @@ class EducationTable(SQLModel, table=True):
     
     # Foreign key referencing profiles.id
     profile_id: UUID = Field(foreign_key="profiles.id")
+
+
+class WorkExperienceTable(SQLModel, table=True):
+    """Database table definition for candidate Professional Work Experience."""
+    __tablename__ = "work_experiences"
+
+    id: UUID = Field(default_factory=generate_uuid7, primary_key=True)
+    employer: str
+    role: str
+    location: str
+    start_date: str
+    end_date: str
+    description: str
+
+    profile_id: UUID = Field(foreign_key="profiles.id")
+
+
+class ProjectTable(SQLModel, table=True):
+    """Database table definition for candidate Projects."""
+    __tablename__ = "projects"
+
+    id: UUID = Field(default_factory=generate_uuid7, primary_key=True)
+    name: str
+    description: str
+    start_date: str
+    end_date: str
+    url: Optional[str] = None
+
+    profile_id: UUID = Field(foreign_key="profiles.id")
+
+
+class HackathonTable(SQLModel, table=True):
+    """Database table definition for Hackathons and Competitions."""
+    __tablename__ = "hackathons"
+
+    id: UUID = Field(default_factory=generate_uuid7, primary_key=True)
+    name: str
+    organization: str
+    date: str
+    role_placement: str
+    description: str
+
+    profile_id: UUID = Field(foreign_key="profiles.id")
+

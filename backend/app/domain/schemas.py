@@ -39,3 +39,59 @@ class Education(EducationBase):
     id: UUID
     profile_id: UUID
     model_config = ConfigDict(from_attributes=True)
+
+
+# --- WORK EXPERIENCE SCHEMAS ---
+
+class WorkExperienceBase(BaseModel):
+    employer: str = Field(..., min_length=1, description="Name of employer or organization")
+    role: str = Field(..., min_length=1, description="Job title or role")
+    location: str = Field(..., min_length=2, description="Location (e.g. City, State)")
+    start_date: str = Field(..., description="Start date (e.g., YYYY-MM or Month YYYY)")
+    end_date: str = Field(..., description="End date or 'Present'")
+    description: str = Field(..., description="Raw unstructured text description of tasks and achievements")
+
+class WorkExperienceCreate(WorkExperienceBase):
+    profile_id: UUID
+
+class WorkExperience(WorkExperienceBase):
+    id: UUID
+    profile_id: UUID
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- PROJECT SCHEMAS ---
+
+class ProjectBase(BaseModel):
+    name: str = Field(..., min_length=1, description="Name of the project")
+    description: str = Field(..., description="Raw unstructured text description of project scope and achievements")
+    start_date: str = Field(..., description="Start date (e.g., YYYY-MM)")
+    end_date: str = Field(..., description="End date (e.g., YYYY-MM)")
+    url: Optional[str] = Field(None, description="Optional link to project repository or deployment")
+
+class ProjectCreate(ProjectBase):
+    profile_id: UUID
+
+class Project(ProjectBase):
+    id: UUID
+    profile_id: UUID
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- HACKATHON & COMPETITION SCHEMAS ---
+
+class HackathonBase(BaseModel):
+    name: str = Field(..., min_length=1, description="Name of the hackathon or event")
+    organization: str = Field(..., min_length=1, description="Hosting organization")
+    date: str = Field(..., description="Completion date of the event")
+    role_placement: str = Field(..., description="Placement or role in the team (e.g., 1st Place, Participant)")
+    description: str = Field(..., description="Raw unstructured description of project built and achievements")
+
+class HackathonCreate(HackathonBase):
+    profile_id: UUID
+
+class Hackathon(HackathonBase):
+    id: UUID
+    profile_id: UUID
+    model_config = ConfigDict(from_attributes=True)
+
