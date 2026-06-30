@@ -117,3 +117,9 @@ class AtomicFact(AtomicFactBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AtomicFactMerge(AtomicFactBase):
+    id: Optional[UUID] = None
+    status: str = Field(..., description="Merge status: 'new' or 'update'")
+
+
+

@@ -7,7 +7,7 @@ from app.domain.schemas import (
     WorkExperience, WorkExperienceCreate,
     Project, ProjectCreate,
     Hackathon, HackathonCreate,
-    AtomicFact, AtomicFactCreate
+    AtomicFact, AtomicFactCreate, AtomicFactMerge
 )
 
 class ProfileRepository(ABC):
@@ -177,4 +177,13 @@ class AtomicFactRepository(ABC):
     def delete(self, id: UUID) -> bool:
         """Deletes an atomic fact record by ID. Returns True if deleted, False otherwise."""
         pass
+
+    @abstractmethod
+    def merge_facts(self, facts: List[AtomicFactMerge], parent_id: UUID, parent_type: str) -> List[AtomicFact]:
+        """
+        Processes a checklist of new and updated facts, merging them into SQLite.
+        parent_type must be one of: 'work_experience', 'project', 'hackathon'.
+        """
+        pass
+
 

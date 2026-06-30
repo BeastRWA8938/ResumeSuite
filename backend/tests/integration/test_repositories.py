@@ -1,7 +1,11 @@
 import pytest
 from sqlmodel import SQLModel, Session, create_engine
-from app.domain.schemas import ProfileCreate, EducationCreate
-from app.persistence.repositories import SQLProfileRepository, SQLEducationRepository
+from app.domain.schemas import ProfileCreate, EducationCreate, AtomicFactCreate, AtomicFactMerge
+from app.persistence.repositories import (
+    SQLProfileRepository, SQLEducationRepository,
+    SQLWorkExperienceRepository, SQLProjectRepository, SQLHackathonRepository,
+    SQLAtomicFactRepository
+)
 
 @pytest.fixture(name="db_session")
 def db_session_fixture():
@@ -268,3 +272,62 @@ def test_hackathon_repository_flow(db_session):
     # 5. Delete entry
     assert hack_repo.delete(hack_saved.id) is True
     assert hack_repo.get_by_id(hack_saved.id) is None
+
+
+def test_atomic_fact_repository_merge_flow(db_session):
+    """Verify that SQLAtomicFactRepository correctly inserts new facts and updates existing facts in-place."""
+    from app.persistence.models import generate_uuid7
+    
+    fact_repo = SQLAtomicFactRepository(db_session)
+    parent_uuid = generate_uuid7()
+
+    # 1. Save an initial fact
+    fact_in = AtomicFactCreate(
+        action="Optimized database write-lock queues",
+        metric_result="reducing locks by 10%",
+        skills=["SQLite"],
+        work_experience_id=parent_uuid
+    )
+    saved_fact = fact_repo.save(fact_in)
+    assert saved_fact.action == "Optimized database write-lock queues"
+    assert saved_fact.id is not None
+
+    # 2. Formulate checklist for merge
+    checklist = [
+        # An update to the existing fact
+        AtomicFactMerge(
+            id=saved_fact.id,
+            action="Optimized database write-lock queues in SQLite",
+            metric_result="reducing locks by 30% (improved)",
+            skills=["SQLite", "SQLModel"],
+            status="update"
+        ),
+        # An entirely new fact
+        AtomicFactMerge(
+            id=None,
+            action="Added prometheus backend monitors",
+            metric_result="tracking transaction rate",
+            skills=["Prometheus"],
+            status="new"
+        )
+    ]
+
+    # 3. Perform merge
+    merged_facts = fact_repo.merge_facts(checklist, parent_uuid, "work_experience")
+    assert len(merged_facts) == 2
+
+    # 4. Fetch facts from DB and check
+    db_facts = fact_repo.get_by_work_experience(parent_uuid)
+    assert len(db_facts) == 2
+
+    # Find the updated one
+    updated_fact = next(f for f in db_facts if f.id == saved_fact.id)
+    assert updated_fact.action == "Optimized database write-lock queues in SQLite"
+    assert updated_fact.metric_result == "reducing locks by 30% (improved)"
+    assert updated_fact.skills == ["SQLite", "SQLModel"]
+
+    # Find the new one
+    new_fact = next(f for f in db_facts if f.id != saved_fact.id)
+    assert new_fact.action == "Added prometheus backend monitors"
+    assert new_fact.skills == ["Prometheus"]
+

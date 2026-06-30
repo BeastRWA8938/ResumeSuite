@@ -4,7 +4,7 @@ from uuid import UUID
 from typing import List
 from pydantic import BaseModel
 
-from app.domain.schemas import AtomicFact, AtomicFactCreate
+from app.domain.schemas import AtomicFact, AtomicFactCreate, AtomicFactMerge
 from app.persistence.db import get_session
 from app.persistence.repositories import SQLAtomicFactRepository
 from app.infrastructure.services import GeminiFactExtractionService
@@ -13,13 +13,14 @@ router = APIRouter(prefix="/api/fact", tags=["Atomic Fact"])
 
 class ExtractionRequest(BaseModel):
     raw_description: str
+    existing_facts: List[AtomicFact] = []
 
-@router.post("/extract", response_model=List[AtomicFactCreate])
+@router.post("/extract", response_model=List[AtomicFactMerge])
 def extract_atomic_facts(req: ExtractionRequest):
-    """Decomposes a raw unstructured text paragraph into multiple Atomic Facts using Gemini AI."""
+    """Decomposes a raw unstructured text paragraph into multiple Atomic Facts, matching against existing records to prevent duplicates."""
     service = GeminiFactExtractionService()
     try:
-        return service.extract_facts(req.raw_description)
+        return service.extract_facts(req.raw_description, req.existing_facts)
     except ValueError as ve:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -78,3 +79,27 @@ def delete_atomic_fact(id: UUID, session: Session = Depends(get_session)):
             detail="Atomic fact not found"
         )
     return {"success": True, "detail": "Atomic fact deleted"}
+
+
+class MergeRequest(BaseModel):
+    facts: List[AtomicFactMerge]
+    parent_id: UUID
+    parent_type: str
+
+@router.post("/merge", response_model=List[AtomicFact])
+def merge_atomic_facts(req: MergeRequest, session: Session = Depends(get_session)):
+    """Atomically updates and inserts verified facts into the SQLite database vault."""
+    repo = SQLAtomicFactRepository(session)
+    try:
+        return repo.merge_facts(req.facts, req.parent_id, req.parent_type)
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(ve)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Fact merge operations failed: {e}"
+        )
+

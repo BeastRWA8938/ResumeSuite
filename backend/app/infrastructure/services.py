@@ -1,9 +1,10 @@
 import os
 import json
 from typing import List
+from uuid import UUID
 import google.generativeai as genai
 from app.domain.services import FactExtractionService
-from app.domain.schemas import AtomicFactCreate
+from app.domain.schemas import AtomicFact, AtomicFactMerge
 
 class GeminiFactExtractionService(FactExtractionService):
     """Concrete implementation of FactExtractionService using the Google Gemini SDK."""
@@ -22,17 +23,30 @@ class GeminiFactExtractionService(FactExtractionService):
         with open(self.prompt_template_path, "r", encoding="utf-8") as f:
             return f.read()
 
-    def extract_facts(self, raw_description: str) -> List[AtomicFactCreate]:
+    def extract_facts(self, raw_description: str, existing_facts: List[AtomicFact] = []) -> List[AtomicFactMerge]:
         """
-        Sends raw text block to Gemini API and parses structural action-result-skills facts.
-        Raises ValueError if API Key is missing, or RuntimeError on formatting failures.
+        Sends raw text block and existing facts to Gemini API.
+        Returns a list of structured AtomicFactMerge instructions.
         """
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY environment variable is not configured.")
 
+        # Serialize existing facts into readable JSON for prompt injection
+        existing_facts_str = json.dumps([
+            {
+                "id": str(f.id),
+                "action": f.action,
+                "metric_result": f.metric_result,
+                "skills": f.skills
+            } for f in existing_facts
+        ], indent=2)
+
         # Format prompt payload
         template = self._load_prompt_template()
-        prompt = template.format(raw_description=raw_description)
+        prompt = template.format(
+            raw_description=raw_description,
+            existing_facts=existing_facts_str
+        )
 
         # Boot target model
         model = genai.GenerativeModel("gemini-2.5-flash")
@@ -60,7 +74,19 @@ class GeminiFactExtractionService(FactExtractionService):
             for item in parsed_json:
                 action = item.get("action", "").strip()
                 metric_result = item.get("metric_result")
-                
+                status = item.get("status", "new").strip().lower()
+                if status not in ["new", "update"]:
+                    status = "new"
+
+                # Parse fact UUID if status is an update
+                fact_id = item.get("id")
+                uuid_id = None
+                if fact_id and status == "update":
+                    try:
+                        uuid_id = UUID(str(fact_id))
+                    except ValueError:
+                        uuid_id = None
+
                 # Cleanup metric outcome representation
                 if not metric_result or str(metric_result).strip() == "":
                     metric_result = None
@@ -75,10 +101,12 @@ class GeminiFactExtractionService(FactExtractionService):
                 skills = [str(s).strip() for s in skills if s]
 
                 if action:
-                    fact = AtomicFactCreate(
+                    fact = AtomicFactMerge(
+                        id=uuid_id,
                         action=action,
                         metric_result=metric_result,
-                        skills=skills
+                        skills=skills,
+                        status=status
                     )
                     facts.append(fact)
             return facts

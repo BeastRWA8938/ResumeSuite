@@ -242,9 +242,11 @@ def test_profile_and_education_endpoints_workflow():
         mock_response.text = """
         [
           {
+            "id": null,
             "action": "Built cloud backend",
             "metric_result": "improving database throughput by 40%",
-            "skills": ["Python", "FastAPI"]
+            "skills": ["Python", "FastAPI"],
+            "status": "new"
           }
         ]
         """
@@ -308,3 +310,103 @@ def test_profile_and_education_endpoints_workflow():
     response = client.delete(f"/api/fact/{fact_id}")
     assert response.status_code == 200
     assert response.json() == {"success": True, "detail": "Atomic fact deleted"}
+
+    # 26. Pipeline Merging Test (Slice 5 Step 3)
+    # Query facts for exp_id and delete them all to start clean
+    response = client.get(f"/api/fact/work-experience/{exp_id}")
+    existing_facts = response.json()
+    for fact in existing_facts:
+        client.delete(f"/api/fact/{fact['id']}")
+
+    # Extract initial description
+    with patch("google.generativeai.GenerativeModel") as mock_model_class:
+        mock_model_instance = MagicMock()
+        mock_model_class.return_value = mock_model_instance
+        mock_response = MagicMock()
+        mock_response.text = """
+        [
+          {
+            "id": null,
+            "action": "Optimized database queries",
+            "metric_result": "reducing latency by 10%",
+            "skills": ["SQLite"],
+            "status": "new"
+          }
+        ]
+        """
+        mock_model_instance.generate_content.return_value = mock_response
+
+        response = client.post("/api/fact/extract", json={"raw_description": "Initial text description"})
+        assert response.status_code == 200
+        initial_drafts = response.json()
+        assert len(initial_drafts) == 1
+
+    # Merge initial drafts
+    response = client.post("/api/fact/merge", json={
+        "facts": initial_drafts,
+        "parent_id": str(exp_id),
+        "parent_type": "work_experience"
+    })
+    assert response.status_code == 200
+    saved_initial = response.json()
+    assert len(saved_initial) == 1
+    first_fact_id = saved_initial[0]["id"]
+
+    # Extract updated description, passing the existing facts
+    with patch("google.generativeai.GenerativeModel") as mock_model_class:
+        mock_model_instance = MagicMock()
+        mock_model_class.return_value = mock_model_instance
+        mock_response = MagicMock()
+        mock_response.text = f"""
+        [
+          {{
+            "id": "{first_fact_id}",
+            "action": "Optimized database queries in SQLite",
+            "metric_result": "reducing latency by 30%",
+            "skills": ["SQLite", "SQLModel"],
+            "status": "update"
+          }},
+          {{
+            "id": null,
+            "action": "Configured database indexes",
+            "metric_result": "speeding up index scans",
+            "skills": ["SQLite"],
+            "status": "new"
+          }}
+        ]
+        """
+        mock_model_instance.generate_content.return_value = mock_response
+
+        payload = {
+            "raw_description": "Updated text description",
+            "existing_facts": saved_initial
+        }
+        response = client.post("/api/fact/extract", json=payload)
+        assert response.status_code == 200
+        updated_drafts = response.json()
+        assert len(updated_drafts) == 2
+
+    # Merge updated drafts
+    response = client.post("/api/fact/merge", json={
+        "facts": updated_drafts,
+        "parent_id": str(exp_id),
+        "parent_type": "work_experience"
+    })
+    assert response.status_code == 200
+    merged_final = response.json()
+    assert len(merged_final) == 2
+
+    # Verify DB values are merged and de-duplicated
+    response = client.get(f"/api/fact/work-experience/{exp_id}")
+    assert response.status_code == 200
+    final_facts = response.json()
+    assert len(final_facts) == 2
+
+    updated_row = next(f for f in final_facts if f["id"] == first_fact_id)
+    assert updated_row["action"] == "Optimized database queries in SQLite"
+    assert updated_row["metric_result"] == "reducing latency by 30%"
+    assert updated_row["skills"] == ["SQLite", "SQLModel"]
+
+    new_row = next(f for f in final_facts if f["id"] != first_fact_id)
+    assert new_row["action"] == "Configured database indexes"
+

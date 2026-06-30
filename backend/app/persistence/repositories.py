@@ -11,7 +11,7 @@ from app.domain.schemas import (
     WorkExperience, WorkExperienceCreate,
     Project, ProjectCreate,
     Hackathon, HackathonCreate,
-    AtomicFact, AtomicFactCreate
+    AtomicFact, AtomicFactCreate, AtomicFactMerge
 )
 from app.persistence.models import (
     ProfileTable, EducationTable,
@@ -359,4 +359,48 @@ class SQLAtomicFactRepository(AtomicFactRepository):
         self.session.delete(db_fact)
         self.session.commit()
         return True
+
+    def merge_facts(self, facts: List[AtomicFactMerge], parent_id: UUID, parent_type: str) -> List[AtomicFact]:
+        """
+        Processes a checklist of new and updated facts, merging them into SQLite.
+        parent_type must be one of: 'work_experience', 'project', 'hackathon'.
+        """
+        clean_parent_type = parent_type.replace("-", "_").strip().lower()
+        allowed_types = ["work_experience", "project", "hackathon"]
+        if clean_parent_type not in allowed_types:
+            raise ValueError(f"Invalid parent_type '{parent_type}'. Must be one of {allowed_types}")
+
+        fk_field = f"{clean_parent_type}_id"
+        merged_entities = []
+
+        for fact in facts:
+            if fact.status == "update" and fact.id:
+                # Attempt to retrieve existing record
+                db_fact = self.session.get(AtomicFactTable, fact.id)
+                if db_fact:
+                    db_fact.action = fact.action
+                    db_fact.metric_result = fact.metric_result
+                    db_fact.skills = json.dumps(fact.skills)
+                    setattr(db_fact, fk_field, parent_id)
+                    self.session.add(db_fact)
+                    merged_entities.append(db_fact)
+                    continue
+
+            # Default fallback for status == "new" or missing update row
+            db_fact = AtomicFactTable(
+                action=fact.action,
+                metric_result=fact.metric_result,
+                skills=json.dumps(fact.skills),
+                **{fk_field: parent_id}
+            )
+            self.session.add(db_fact)
+            merged_entities.append(db_fact)
+
+        self.session.commit()
+        # Refresh and map entities to schemas
+        for entity in merged_entities:
+            self.session.refresh(entity)
+
+        return [self._to_schema(item) for item in merged_entities]
+
 

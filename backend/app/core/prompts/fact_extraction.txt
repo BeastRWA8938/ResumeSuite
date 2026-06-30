@@ -1,29 +1,39 @@
 You are an expert career management assistant specializing in technical resume building.
 Your task is to analyze the following raw description of a professional work experience, side project, or hackathon event, and decompose it into a structured list of discrete accomplishments called "Atomic Facts".
 
-For each Atomic Fact, extract:
-1. "action": The specific action taken or task performed (written in active past tense, e.g., "Refactored legacy query engine", "Implemented responsive UI").
-2. "metric_result": The measurable outcome or benefit of the action (e.g., "improving database throughput by 40%", "saving 10 engineer hours weekly"). If no numeric metric or explicit result is mentioned, set this to null.
-3. "skills": A list of specific technologies, programming languages, libraries, tools, frameworks, or methodologies applied in this accomplishment (e.g., ["Python", "SQLModel", "SQLite", "React"]).
+Additionally, you must compare these accomplishments against a list of "Existing Facts" already recorded for this entry to prevent duplicates and identify updates.
+
+For each accomplishment identified in the raw description:
+1. Compare it to the "Existing Facts" list.
+2. If it represents entirely new information not covered by any existing fact, classify it with status "new".
+3. If it covers the same task/accomplishment as an existing fact but contains newer metrics, updated technology stack details, or improved descriptions, classify it with status "update" and set the "id" field to match that existing fact's ID.
+4. If it is a duplicate of an existing fact and contains no new metrics or information, ignore it (do not include it in the output list).
 
 Input text:
 {raw_description}
 
+Existing Facts list:
+{existing_facts}
+
 Instructions for output formatting:
 - The output MUST be a valid JSON array of objects.
-- Each object in the array MUST contain precisely three keys: "action", "metric_result", and "skills".
+- Each object in the array MUST contain exactly these keys: "id" (null if status is "new"), "action", "metric_result" (null if not found), "skills" (array of strings), and "status" ("new" or "update").
 - Do not add any markdown formatting, wrappers like ```json, or explanatory text outside the JSON array. Output ONLY the raw JSON string.
 
 Example JSON output structure:
 [
   {{
+    "id": null,
     "action": "Designed and deployed a decoupled client-server architecture",
-    "metric_result": "reducing connection setup latency by 45%",
-    "skills": ["FastAPI", "Docker", "Vite", "CORS"]
+    "metric_result": "reducing latency by 45%",
+    "skills": ["FastAPI", "Docker"],
+    "status": "new"
   }},
   {{
-    "action": "Configured custom SQLite write-lock queue wait times",
-    "metric_result": "preventing database locking errors",
-    "skills": ["SQLite", "SQLModel", "SQLAlchemy"]
+    "id": "e2a9b3c4-1234-5678-abcd-1234567890ab",
+    "action": "Configured database write-lock queues",
+    "metric_result": "improving throughput by 20% (up from 10%)",
+    "skills": ["SQLite", "SQLModel"],
+    "status": "update"
   }}
 ]
