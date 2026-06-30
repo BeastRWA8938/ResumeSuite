@@ -29,6 +29,19 @@ describe('App Dashboard Component', () => {
         data = [];
       } else if (url.includes('/api/fact/hackathon/')) {
         data = [];
+      } else if (url.includes('/api/resume/synthesize')) {
+        data = {
+          bullets: [
+            {
+              fact_id: "test-fact-uuid-0",
+              synthesized_bullet: "Custom synthesized achievement bullet point for test uuid 0."
+            }
+          ],
+          skills: {
+            "Languages": ["TypeScript", "Python"],
+            "Frameworks": ["React", "FastAPI"]
+          }
+        };
       } else if (url.includes('/api/fact/rank')) {
         data = Array.from({ length: 12 }, (_, i) => ({
           fact: {
@@ -204,5 +217,45 @@ describe('App Dashboard Component', () => {
     });
     expect(budgetCounter).toHaveTextContent("10 / 10");
     expect(proceedBtn).not.toBeDisabled();
+  });
+
+  it('triggers bullet synthesis and displays preview metrics', async () => {
+    await act(async () => {
+      render(<App />);
+    });
+
+    const tailorTabBtn = screen.getByRole('button', { name: /Resume Tailoring Workspace/i });
+    await act(async () => {
+      fireEvent.click(tailorTabBtn);
+    });
+
+    const companyInput = screen.getByLabelText(/Company Name \/ Context/i);
+    const jdTextarea = screen.getByLabelText(/Job Description Text/i);
+    const rankBtn = screen.getByRole('button', { name: /Calculate Relevance Rankings/i });
+
+    fireEvent.change(companyInput, { target: { value: 'Google' } });
+    fireEvent.change(jdTextarea, { target: { value: 'Looking for TypeScript developers.' } });
+
+    await act(async () => {
+      fireEvent.click(rankBtn);
+    });
+
+    // Proceed to synthesis click
+    const proceedBtn = screen.getByRole('button', { name: /Proceed to Bullet Synthesis/i });
+    expect(proceedBtn).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(proceedBtn);
+    });
+
+    // Check preview header and results are rendered
+    const previewHeader = await screen.findByText(/Tailored Bullet Points Preview/i);
+    expect(previewHeader).toBeInTheDocument();
+
+    const bulletText = screen.getByText(/Custom synthesized achievement bullet point/i);
+    expect(bulletText).toBeInTheDocument();
+
+    const skillTexts = screen.getAllByText(/TypeScript/i);
+    expect(skillTexts.length).toBeGreaterThan(0);
   });
 });

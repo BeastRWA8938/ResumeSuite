@@ -152,3 +152,50 @@ def test_gemini_relevance_ranking_service_flow(mock_model_class):
     # Verify model parameters
     mock_model_class.assert_called_once_with("gemini-2.5-flash")
 
+
+from app.infrastructure.services import GeminiResumeSynthesisService
+
+@patch("google.generativeai.GenerativeModel")
+def test_gemini_resume_synthesis_flow(mock_model_class):
+    """Verify that GeminiResumeSynthesisService structures synthesis responses correctly."""
+    mock_model_instance = MagicMock()
+    mock_model_class.return_value = mock_model_instance
+    
+    fact_id1 = UUID("e2a9b3c4-1234-5678-abcd-1234567890ab")
+    
+    mock_response = MagicMock()
+    mock_response.text = f"""
+    {{
+      "bullets": [
+        {{
+          "fact_id": "{str(fact_id1)}",
+          "synthesized_bullet": "Developed API with FastAPI, speeding up data queries by 30%."
+        }}
+      ],
+      "skills": {{
+        "Languages": ["Python"],
+        "Frameworks": ["FastAPI"]
+      }}
+    }}
+    """
+    mock_model_instance.generate_content.return_value = mock_response
+
+    facts = [
+        AtomicFact(id=fact_id1, action="Built FastAPI API", skills=["FastAPI"])
+    ]
+    all_skills = ["Python", "FastAPI"]
+
+    service = GeminiResumeSynthesisService(api_key="mock-api-key")
+    res = service.synthesize_resume_content(
+        facts=facts,
+        all_skills=all_skills,
+        job_description="FastAPI role",
+        company_context="Acme Tech"
+    )
+
+    assert len(res.bullets) == 1
+    assert res.bullets[0].fact_id == fact_id1
+    assert res.bullets[0].synthesized_bullet == "Developed API with FastAPI, speeding up data queries by 30%."
+    assert "Languages" in res.skills
+    assert res.skills["Languages"] == ["Python"]
+

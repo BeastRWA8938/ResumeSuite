@@ -8,6 +8,7 @@ from app.api.work_experience import router as work_experience_router
 from app.api.project import router as project_router
 from app.api.hackathon import router as hackathon_router
 from app.api.fact import router as fact_router
+from app.api.resume import router as resume_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,6 +44,7 @@ app.include_router(work_experience_router)
 app.include_router(project_router)
 app.include_router(hackathon_router)
 app.include_router(fact_router)
+app.include_router(resume_router)
 
 @app.get("/")
 def read_root():

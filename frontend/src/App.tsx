@@ -168,6 +168,13 @@ function App() {
   const [attemptedRanking, setAttemptedRanking] = useState(false);
   const [selectedFactIds, setSelectedFactIds] = useState<Set<string>>(new Set());
 
+  // Resume Synthesis states
+  const [synthesizedBullets, setSynthesizedBullets] = useState<Record<string, string>>({});
+  const [prioritizedSkills, setPrioritizedSkills] = useState<Record<string, string[]>>({});
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [synthesisError, setSynthesisError] = useState<string | null>(null);
+  const [attemptedSynthesis, setAttemptedSynthesis] = useState(false);
+
   // 1. Connection check and initial retrieval
   useEffect(() => {
     const runStartupChecks = async () => {
@@ -386,6 +393,45 @@ function App() {
       .sort((a, b) => b.score - a.score)
       .slice(0, 10);
     setSelectedFactIds(new Set(sortedByScore.map(r => r.fact.id).filter(Boolean)));
+  };
+
+  const handleProceedToSynthesis = async () => {
+    if (selectedFactIds.size === 0 || selectedFactIds.size > 10) return;
+    setIsSynthesizing(true);
+    setSynthesisError(null);
+    setAttemptedSynthesis(true);
+
+    try {
+      const response = await fetch('http://localhost:8000/api/resume/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selected_fact_ids: Array.from(selectedFactIds),
+          job_description: jobDescription,
+          company_context: companyContext
+        })
+      });
+
+      if (!response.ok) {
+        const errorDetail = await response.json();
+        throw new Error(errorDetail.detail || 'Resume synthesis failed');
+      }
+
+      const data = await response.json();
+      
+      const mapping: Record<string, string> = {};
+      if (data.bullets) {
+        data.bullets.forEach((b: any) => {
+          mapping[b.fact_id] = b.synthesized_bullet;
+        });
+      }
+      setSynthesizedBullets(mapping);
+      setPrioritizedSkills(data.skills || {});
+    } catch (err: any) {
+      setSynthesisError(err.message || 'Synthesis failed.');
+    } finally {
+      setIsSynthesizing(false);
+    }
   };
 
   // --- DRAFT CHECKLIST CRUD METHODS ---
@@ -1496,23 +1542,89 @@ function App() {
                       {/* Proceed to Generation Button */}
                       <button
                         type="button"
+                        onClick={handleProceedToSynthesis}
                         className="btn btn-primary"
-                        disabled={selectedFactIds.size === 0 || selectedFactIds.size > 10}
+                        disabled={selectedFactIds.size === 0 || selectedFactIds.size > 10 || isSynthesizing}
                         style={{
                           width: '100%',
                           padding: '14px',
                           marginTop: '20px',
                           fontWeight: 'bold',
-                          fontSize: '15px'
+                          fontSize: '15px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px'
                         }}
                       >
-                        Proceed to Bullet Synthesis
+                        {isSynthesizing ? (
+                          <>
+                            <span className="spinner"></span> Synthesizing Tailored Accomplishments...
+                          </>
+                        ) : 'Proceed to Bullet Synthesis'}
                       </button>
+
+                      {synthesisError && (
+                        <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', color: '#f87171', fontSize: '13px' }}>
+                          {synthesisError}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
 
               </div>
+
+              {/* Synthesized Preview Panel */}
+              {attemptedSynthesis && Object.keys(synthesizedBullets).length > 0 && (
+                <div className="card-item" style={{ marginTop: '24px', padding: '24px' }}>
+                  <h3 style={{ margin: '0 0 16px 0', borderBottom: '2px solid var(--accent)', paddingBottom: '8px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Tailored Bullet Points Preview (STAR / Google XYZ Format)</span>
+                    <span style={{ fontSize: '12px', color: '#a7f3d0', background: 'rgba(52, 211, 153, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>AI Customized</span>
+                  </h3>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '24px', alignItems: 'start' }}>
+                    
+                    {/* Tailored Bullet List */}
+                    <div>
+                      <h4 style={{ color: 'var(--accent)', fontSize: '13px', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.05em' }}>
+                        Synthesized Accomplishments
+                      </h4>
+                      <ul style={{ margin: 0, paddingLeft: '20px', color: 'white', fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {Object.entries(synthesizedBullets).map(([factId, bulletText]) => (
+                          <li key={factId} style={{ lineHeight: '1.5' }}>
+                            {bulletText}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Prioritized Skills Directory */}
+                    <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '8px', padding: '16px' }}>
+                      <h4 style={{ color: 'var(--accent)', fontSize: '13px', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.05em' }}>
+                        Prioritized Skills Categories (JD Aligned)
+                      </h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {Object.entries(prioritizedSkills).map(([category, skillsList]) => (
+                          <div key={category} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '8px' }}>
+                            <strong style={{ fontSize: '12.5px', color: '#d8b4fe', display: 'block', marginBottom: '4px' }}>
+                              {category}
+                            </strong>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                              {skillsList.map((skill: string) => (
+                                <span key={skill} style={{ background: 'rgba(192, 132, 252, 0.1)', border: '1px solid rgba(192, 132, 252, 0.2)', color: '#e9d5ff', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px' }}>
+                                  {skill}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              )}
             </section>
           )}
         </main>

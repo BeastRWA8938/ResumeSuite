@@ -128,5 +128,16 @@ class FactRankResult(BaseModel):
     matched_keywords: list[str] = []
 
 
+# --- RESUME SYNTHESIS SCHEMAS ---
+
+class SynthesizedFact(BaseModel):
+    fact_id: UUID
+    synthesized_bullet: str
+
+class ResumeSynthesisResponse(BaseModel):
+    bullets: list[SynthesizedFact]
+    skills: dict[str, list[str]] = {}
+
+
 
 

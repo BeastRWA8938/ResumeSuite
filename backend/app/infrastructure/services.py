@@ -231,3 +231,136 @@ class GeminiRelevanceRankingService(RelevanceRankingService):
                 f"Raw response was: {response.text if response else 'None'}"
             )
 
+
+from app.domain.services import ResumeSynthesisService
+from app.domain.schemas import ResumeSynthesisResponse, SynthesizedFact
+
+class GeminiResumeSynthesisService(ResumeSynthesisService):
+    """Concrete implementation of ResumeSynthesisService using the Google Gemini SDK."""
+
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
+        if self.api_key:
+            genai.configure(api_key=self.api_key)
+        
+        # Resolve prompt template path dynamically
+        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.prompt_template_path = os.path.join(current_dir, "core", "prompts", "resume_synthesis.txt")
+
+    def _load_prompt_template(self) -> str:
+        """Reads synthesis instructions from disk."""
+        with open(self.prompt_template_path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    def synthesize_resume_content(
+        self,
+        facts: List[AtomicFact],
+        all_skills: List[str],
+        job_description: str,
+        company_context: str
+    ) -> ResumeSynthesisResponse:
+        """
+        Synthesizes selected accomplishments into STAR / Google XYZ format,
+        and prioritizes baseline skills matching the Job Description and Company Context.
+        """
+        if not facts:
+            return ResumeSynthesisResponse(bullets=[], skills={})
+        if not self.api_key:
+            raise ValueError("GEMINI_API_KEY environment variable is not configured.")
+
+        # Serialize payload
+        facts_payload = [
+            {
+                "id": str(f.id),
+                "action": f.action,
+                "metric_result": f.metric_result or ""
+            } for f in facts
+        ]
+        
+        template = self._load_prompt_template()
+        prompt = template.format(
+            job_description=job_description,
+            company_context=company_context,
+            facts_json=json.dumps(facts_payload, indent=2),
+            skills_json=json.dumps(all_skills, indent=2)
+        )
+
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        generation_config = {
+            "response_mime_type": "application/json",
+            "temperature": 0.2
+        }
+
+        response = model.generate_content(
+            prompt,
+            generation_config=generation_config
+        )
+
+        try:
+            parsed_json = json.loads(response.text)
+            
+            # Map bullets
+            bullets_list = []
+            raw_bullets = parsed_json.get("bullets", [])
+            for b in raw_bullets:
+                fact_id_str = b.get("fact_id")
+                bullet_text = b.get("synthesized_bullet", "").strip()
+                if fact_id_str and bullet_text:
+                    try:
+                        bullets_list.append(
+                            SynthesizedFact(
+                                fact_id=UUID(fact_id_str),
+                                synthesized_bullet=bullet_text
+                            )
+                        )
+                    except ValueError:
+                        continue
+                        
+            # Handle missing mappings gracefully (fallback to original fact action + metric)
+            mapped_ids = {str(b.fact_id) for b in bullets_list}
+            for f in facts:
+                if str(f.id) not in mapped_ids:
+                    fallback_bullet = f.action
+                    if f.metric_result:
+                        fallback_bullet += f" ({f.metric_result})"
+                    bullets_list.append(
+                        SynthesizedFact(
+                            fact_id=f.id,
+                            synthesized_bullet=fallback_bullet
+                        )
+                    )
+
+            # Map prioritized skills
+            skills_dict = parsed_json.get("skills", {})
+            if not isinstance(skills_dict, dict):
+                skills_dict = {}
+
+            # Sanitize skills mapping
+            sanitized_skills = {}
+            for cat, items in skills_dict.items():
+                if isinstance(items, list):
+                    sanitized_skills[str(cat).strip()] = [str(it).strip() for it in items if it]
+
+            return ResumeSynthesisResponse(
+                bullets=bullets_list,
+                skills=sanitized_skills
+            )
+
+        except Exception as e:
+            # Safe fallback if LLM response is corrupt
+            bullets_list = []
+            for f in facts:
+                fallback_bullet = f.action
+                if f.metric_result:
+                    fallback_bullet += f" ({f.metric_result})"
+                bullets_list.append(
+                    SynthesizedFact(
+                        fact_id=f.id,
+                        synthesized_bullet=fallback_bullet
+                    )
+                )
+            return ResumeSynthesisResponse(
+                bullets=bullets_list,
+                skills={"Skills": all_skills}
+            )
+

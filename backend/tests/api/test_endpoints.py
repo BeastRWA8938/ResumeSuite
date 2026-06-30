@@ -447,4 +447,40 @@ def test_profile_and_education_endpoints_workflow():
         assert ranked_results[0]["matched_keywords"] == ["database", "SQLite"]
         assert ranked_results[1]["score"] == 0.0
 
+    # 28. POST resume/synthesize - expected 200 (ok)
+    with patch("google.generativeai.GenerativeModel") as mock_model_class:
+        mock_model_instance = MagicMock()
+        mock_model_class.return_value = mock_model_instance
+        mock_response = MagicMock()
+        mock_response.text = f"""
+        {{
+          "bullets": [
+            {{
+              "fact_id": "{str(first_fact_id)}",
+              "synthesized_bullet": "Synthesized STAR Google XYZ accomplishment bullet for database optimization."
+            }}
+          ],
+          "skills": {{
+            "Languages": ["Python"],
+            "Frameworks": ["FastAPI"],
+            "Developer Tools": ["Docker"]
+          }}
+        }}
+        """
+        mock_model_instance.generate_content.return_value = mock_response
+
+        payload = {
+            "selected_fact_ids": [str(first_fact_id)],
+            "job_description": "Fullstack python fastapi backend developer",
+            "company_context": "Acme Inc"
+        }
+        response = client.post("/api/resume/synthesize", json=payload)
+        assert response.status_code == 200
+        synthesized_data = response.json()
+        assert len(synthesized_data["bullets"]) == 1
+        assert synthesized_data["bullets"][0]["fact_id"] == str(first_fact_id)
+        assert synthesized_data["bullets"][0]["synthesized_bullet"] == "Synthesized STAR Google XYZ accomplishment bullet for database optimization."
+        assert "Languages" in synthesized_data["skills"]
+        assert synthesized_data["skills"]["Languages"] == ["Python"]
+
 
