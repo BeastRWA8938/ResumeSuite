@@ -75,3 +75,19 @@ class HackathonTable(SQLModel, table=True):
 
     profile_id: UUID = Field(foreign_key="profiles.id")
 
+
+class AtomicFactTable(SQLModel, table=True):
+    """Database table definition for Atomic Facts extracted from raw logs."""
+    __tablename__ = "atomic_facts"
+
+    id: UUID = Field(default_factory=generate_uuid7, primary_key=True)
+    action: str
+    metric_result: Optional[str] = None
+    skills: str = Field(description="JSON-serialized list of skills")
+
+    # Optional foreign keys referencing parent records
+    work_experience_id: Optional[UUID] = Field(default=None, foreign_key="work_experiences.id")
+    project_id: Optional[UUID] = Field(default=None, foreign_key="projects.id")
+    hackathon_id: Optional[UUID] = Field(default=None, foreign_key="hackathons.id")
+
+

@@ -23,6 +23,27 @@ describe('App Dashboard Component', () => {
         data = [];
       } else if (url.includes('/api/hackathon/profile/')) {
         data = [];
+      } else if (url.includes('/api/fact/work-experience/')) {
+        data = [];
+      } else if (url.includes('/api/fact/project/')) {
+        data = [];
+      } else if (url.includes('/api/fact/hackathon/')) {
+        data = [];
+      } else if (url.includes('/api/fact/extract')) {
+        data = [
+          {
+            action: "Extracted mock achievement",
+            metric_result: "improved build times by 20%",
+            skills: ["Vite", "React"]
+          }
+        ];
+      } else if (url.includes('/api/fact')) {
+        data = {
+          id: "test-fact-uuid",
+          action: "Saved fact",
+          metric_result: "improved build times",
+          skills: ["Vite"]
+        };
       } else {
         data = {
           status: "healthy",

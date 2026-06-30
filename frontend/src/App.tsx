@@ -61,6 +61,25 @@ interface Hackathon {
   description: string;
 }
 
+interface AtomicFact {
+  id: string;
+  action: string;
+  metric_result?: string;
+  skills: string[];
+  work_experience_id?: string;
+  project_id?: string;
+  hackathon_id?: string;
+}
+
+interface AtomicFactCreate {
+  action: string;
+  metric_result?: string | null;
+  skills: string[];
+  work_experience_id?: string;
+  project_id?: string;
+  hackathon_id?: string;
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<'overview' | 'profile' | 'education' | 'experience' | 'projects' | 'hackathons'>('overview');
   const [connection, setConnection] = useState<'checking' | 'connected' | 'disconnected'>('checking');
@@ -129,6 +148,16 @@ function App() {
   });
   const [editingHackId, setEditingHackId] = useState<string | null>(null);
   const [saveHackError, setSaveHackError] = useState<string | null>(null);
+
+  // Atomic Facts persistent store (mapped by parent container record ID)
+  const [experienceFacts, setExperienceFacts] = useState<Record<string, AtomicFact[]>>({});
+  const [projectFacts, setProjectFacts] = useState<Record<string, AtomicFact[]>>({});
+  const [hackathonFacts, setHackathonFacts] = useState<Record<string, AtomicFact[]>>({});
+
+  // Draft Atomic Facts validation checklist
+  const [draftFacts, setDraftFacts] = useState<AtomicFactCreate[]>([]);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionError, setExtractionError] = useState<string | null>(null);
 
   // 1. Connection check and initial retrieval
   useEffect(() => {
@@ -206,6 +235,8 @@ function App() {
       if (!response.ok) throw new Error('Failed to load experiences');
       const data = await response.json();
       setExperienceList(data);
+      // Fetch linked facts for each experience
+      data.forEach((exp: WorkExperience) => fetchFactsForParent(exp.id, 'work-experience'));
     } catch (err) {
       console.error(err);
     }
@@ -217,6 +248,8 @@ function App() {
       if (!response.ok) throw new Error('Failed to load projects');
       const data = await response.json();
       setProjectList(data);
+      // Fetch linked facts for each project
+      data.forEach((proj: Project) => fetchFactsForParent(proj.id, 'project'));
     } catch (err) {
       console.error(err);
     }
@@ -228,12 +261,91 @@ function App() {
       if (!response.ok) throw new Error('Failed to load hackathons');
       const data = await response.json();
       setHackathonList(data);
+      // Fetch linked facts for each hackathon
+      data.forEach((hack: Hackathon) => fetchFactsForParent(hack.id, 'hackathon'));
     } catch (err) {
       console.error(err);
     }
   };
 
-  // --- SUBMIT & SAVE HANDLERS ---
+  const fetchFactsForParent = async (parentId: string, parentType: 'work-experience' | 'project' | 'hackathon') => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/fact/${parentType}/${parentId}`);
+      if (!response.ok) throw new Error(`Failed to load facts for ${parentType}`);
+      const data = await response.json();
+      if (parentType === 'work-experience') {
+        setExperienceFacts(prev => ({ ...prev, [parentId]: data }));
+      } else if (parentType === 'project') {
+        setProjectFacts(prev => ({ ...prev, [parentId]: data }));
+      } else if (parentType === 'hackathon') {
+        setHackathonFacts(prev => ({ ...prev, [parentId]: data }));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // --- AI EXTRACTION HANDLER ---
+
+  const handleExtractFacts = async (rawText: string) => {
+    if (!rawText.trim()) {
+      alert("Please enter a description paragraph first.");
+      return;
+    }
+    setIsExtracting(true);
+    setExtractionError(null);
+    try {
+      const response = await fetch('http://localhost:8000/api/fact/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw_description: rawText })
+      });
+      if (!response.ok) {
+        const errorDetail = await response.json();
+        throw new Error(errorDetail.detail || 'Extraction endpoint error');
+      }
+      const data = await response.json();
+      setDraftFacts(data);
+    } catch (err: any) {
+      setExtractionError(err.message || 'AI extraction failed.');
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  // --- DRAFT CHECKLIST CRUD METHODS ---
+
+  const handleEditDraftFact = (index: number, field: keyof AtomicFactCreate, value: string) => {
+    const updated = [...draftFacts];
+    if (field === 'skills') {
+      updated[index].skills = value.split(',').map(s => s.trim()).filter(Boolean);
+    } else {
+      updated[index][field] = value === "" ? null : (value as any);
+    }
+    setDraftFacts(updated);
+  };
+
+  const handleDeleteDraftFact = (index: number) => {
+    setDraftFacts(draftFacts.filter((_, i) => i !== index));
+  };
+
+  const handleAddDraftFact = () => {
+    setDraftFacts([...draftFacts, { action: 'Accomplished X task', metric_result: '', skills: [] }]);
+  };
+
+  const handleSaveFactsForParent = async (parentId: string, parentType: 'work_experience_id' | 'project_id' | 'hackathon_id') => {
+    const savePromises = draftFacts.map(fact => {
+      const payload = { ...fact, [parentType]: parentId };
+      return fetch('http://localhost:8000/api/fact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    });
+    await Promise.all(savePromises);
+  };
+
+  // --- CRUD SUBMIT & SAVE CONTROLLERS ---
 
   const handleSaveProfile = async (e: FormEvent) => {
     e.preventDefault();
@@ -296,11 +408,18 @@ function App() {
         body: JSON.stringify(payload)
       });
       if (!response.ok) throw new Error('Failed to save experience record.');
+      const savedExp = await response.json();
+
+      if (!editingExpId) {
+        // Commit verified atomic facts linking to this experience
+        await handleSaveFactsForParent(savedExp.id, 'work_experience_id');
+      }
 
       await fetchExperience(profile.id);
       setExperienceForm({ employer: '', role: '', location: '', start_date: '', end_date: '', description: '' });
+      setDraftFacts([]);
       setEditingExpId(null);
-      alert(editingExpId ? 'Work experience updated!' : 'Work experience added!');
+      alert(editingExpId ? 'Work experience updated!' : 'Work experience and extracted facts saved to Vault!');
     } catch (err: any) {
       setSaveExpError(err.message || 'Error occurred.');
     }
@@ -323,11 +442,18 @@ function App() {
         body: JSON.stringify(payload)
       });
       if (!response.ok) throw new Error('Failed to save project record.');
+      const savedProj = await response.json();
+
+      if (!editingProjId) {
+        // Commit verified atomic facts linking to this project
+        await handleSaveFactsForParent(savedProj.id, 'project_id');
+      }
 
       await fetchProjects(profile.id);
       setProjectForm({ name: '', description: '', start_date: '', end_date: '', url: '' });
+      setDraftFacts([]);
       setEditingProjId(null);
-      alert(editingProjId ? 'Project updated!' : 'Project added!');
+      alert(editingProjId ? 'Project updated!' : 'Project and extracted facts saved to Vault!');
     } catch (err: any) {
       setSaveProjError(err.message || 'Error occurred.');
     }
@@ -350,11 +476,18 @@ function App() {
         body: JSON.stringify(payload)
       });
       if (!response.ok) throw new Error('Failed to save hackathon record.');
+      const savedHack = await response.json();
+
+      if (!editingHackId) {
+        // Commit verified atomic facts linking to this hackathon
+        await handleSaveFactsForParent(savedHack.id, 'hackathon_id');
+      }
 
       await fetchHackathons(profile.id);
       setHackathonForm({ name: '', organization: '', date: '', role_placement: '', description: '' });
+      setDraftFacts([]);
       setEditingHackId(null);
-      alert(editingHackId ? 'Hackathon/award updated!' : 'Hackathon/award added!');
+      alert(editingHackId ? 'Hackathon/award updated!' : 'Hackathon and extracted facts saved to Vault!');
     } catch (err: any) {
       setSaveHackError(err.message || 'Error occurred.');
     }
@@ -374,8 +507,13 @@ function App() {
   };
 
   const handleDeleteExperience = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this experience?')) return;
+    if (!confirm('Are you sure you want to delete this experience and all linked facts?')) return;
     try {
+      // First delete associated facts
+      const facts = experienceFacts[id] || [];
+      const deleteFactPromises = facts.map(f => fetch(`http://localhost:8000/api/fact/${f.id}`, { method: 'DELETE' }));
+      await Promise.all(deleteFactPromises);
+
       const response = await fetch(`http://localhost:8000/api/work-experience/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Failed to delete.');
       if (profile?.id) await fetchExperience(profile.id);
@@ -385,8 +523,13 @@ function App() {
   };
 
   const handleDeleteProject = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this project?')) return;
+    if (!confirm('Are you sure you want to delete this project and all linked facts?')) return;
     try {
+      // First delete associated facts
+      const facts = projectFacts[id] || [];
+      const deleteFactPromises = facts.map(f => fetch(`http://localhost:8000/api/fact/${f.id}`, { method: 'DELETE' }));
+      await Promise.all(deleteFactPromises);
+
       const response = await fetch(`http://localhost:8000/api/project/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Failed to delete.');
       if (profile?.id) await fetchProjects(profile.id);
@@ -396,11 +539,27 @@ function App() {
   };
 
   const handleDeleteHackathon = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this hackathon entry?')) return;
+    if (!confirm('Are you sure you want to delete this hackathon entry and all linked facts?')) return;
     try {
+      // First delete associated facts
+      const facts = hackathonFacts[id] || [];
+      const deleteFactPromises = facts.map(f => fetch(`http://localhost:8000/api/fact/${f.id}`, { method: 'DELETE' }));
+      await Promise.all(deleteFactPromises);
+
       const response = await fetch(`http://localhost:8000/api/hackathon/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Failed to delete.');
       if (profile?.id) await fetchHackathons(profile.id);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeletePersistentFact = async (factId: string, parentId: string, parentType: 'work-experience' | 'project' | 'hackathon') => {
+    if (!confirm('Delete this structured accomplishment fact permanently?')) return;
+    try {
+      const response = await fetch(`http://localhost:8000/api/fact/${factId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Failed to delete fact.');
+      await fetchFactsForParent(parentId, parentType);
     } catch (err) {
       console.error(err);
     }
@@ -465,7 +624,7 @@ function App() {
                 <h2>Welcome to your Career Vault</h2>
                 <p>
                   This is a private, local-first workspace. Log details regarding your employment, projects, and awards. 
-                  In the next phase, we will feed these entries to the LLM backend to parse them into structured facts.
+                  Use our built-in Gemini extraction tool to structure descriptions into verified Accomplishment facts.
                 </p>
                 <div className="vault-status-summary">
                   <div className="status-item">
@@ -613,7 +772,7 @@ function App() {
           {activeTab === 'experience' && (
             <section className="tab-panel">
               <h2>Work Experiences</h2>
-              <p>Log details of your employment periods and raw achievement summaries.</p>
+              <p>Log details of your employment periods and review/edit extracted AI accomplishments.</p>
               <form onSubmit={handleSaveExperience} style={{ marginTop: '24px' }}>
                 <div className="form-row">
                   <div className="form-group">
@@ -641,11 +800,51 @@ function App() {
                 </div>
                 <div className="form-group">
                   <label>Raw Achievements Description (Text Area) *</label>
-                  <textarea required className="form-control" rows={5} value={experienceForm.description} onChange={e => setExperienceForm({ ...experienceForm, description: e.target.value })} placeholder="Paste raw description or paragraphs describing what you built, results you achieved, and skills used here..." style={{ resize: 'vertical', fontFamily: 'inherit' }} />
+                  <textarea required className="form-control" rows={5} value={experienceForm.description} onChange={e => setExperienceForm({ ...experienceForm, description: e.target.value })} placeholder="Paste raw description describing what you built and results achieved here..." style={{ resize: 'vertical', fontFamily: 'inherit' }} />
                 </div>
+
+                {!editingExpId && (
+                  <div className="ai-actions-box" style={{ margin: '16px 0', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <h3 style={{ fontSize: '15px', marginBottom: '8px', color: 'var(--accent)' }}>AI Fact Extraction Checklist</h3>
+                    <p style={{ fontSize: '13px', margin: '0 0 12px 0', opacity: 0.8 }}>
+                      Convert raw text into reusable, structured accomplishments before adding.
+                    </p>
+                    <button type="button" onClick={() => handleExtractFacts(experienceForm.description)} disabled={isExtracting} className="btn btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      {isExtracting ? 'Extracting with Gemini...' : 'Extract Accomplishments (Gemini AI)'}
+                    </button>
+                    {extractionError && <p style={{ color: '#dc2626', fontSize: '13px', marginTop: '8px' }}>{extractionError}</p>}
+
+                    {draftFacts.length > 0 && (
+                      <div className="draft-checklist" style={{ marginTop: '16px' }}>
+                        <h4 style={{ fontSize: '13px', marginBottom: '8px' }}>Draft Accomplishments List:</h4>
+                        {draftFacts.map((fact, index) => (
+                          <div key={index} className="draft-fact-card" style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '6px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div className="form-group" style={{ marginBottom: '6px' }}>
+                              <label style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>Action *</label>
+                              <input type="text" required className="form-control" style={{ padding: '6px', fontSize: '13px' }} value={fact.action} onChange={e => handleEditDraftFact(index, 'action', e.target.value)} />
+                            </div>
+                            <div className="form-row" style={{ gap: '8px', marginBottom: '6px' }}>
+                              <div className="form-group" style={{ flex: 1 }}>
+                                <label style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>Metric / Result (Optional)</label>
+                                <input type="text" className="form-control" style={{ padding: '6px', fontSize: '13px' }} value={fact.metric_result || ''} onChange={e => handleEditDraftFact(index, 'metric_result', e.target.value)} />
+                              </div>
+                              <div className="form-group" style={{ flex: 1 }}>
+                                <label style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>Skills (Comma Separated)</label>
+                                <input type="text" className="form-control" style={{ padding: '6px', fontSize: '13px' }} value={fact.skills.join(', ')} onChange={e => handleEditDraftFact(index, 'skills', e.target.value)} />
+                              </div>
+                            </div>
+                            <button type="button" onClick={() => handleDeleteDraftFact(index)} className="btn btn-danger" style={{ padding: '4px 8px', fontSize: '11px' }}>Exclude</button>
+                          </div>
+                        ))}
+                        <button type="button" onClick={handleAddDraftFact} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', marginTop: '4px' }}>+ Add Manual Accomplishment</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {saveExpError && <p style={{ color: '#dc2626' }}>{saveExpError}</p>}
                 <div className="actions-container">
-                  <button type="submit" className="btn btn-primary">{editingExpId ? 'Save Changes' : 'Add Experience Record'}</button>
+                  <button type="submit" className="btn btn-primary">{editingExpId ? 'Save Changes' : 'Save Work Experience to Vault'}</button>
                   {editingExpId && <button type="button" onClick={() => { setEditingExpId(null); setExperienceForm({ employer: '', role: '', location: '', start_date: '', end_date: '', description: '' }); }} className="btn btn-secondary">Cancel</button>}
                 </div>
               </form>
@@ -663,7 +862,29 @@ function App() {
                         <button onClick={() => handleDeleteExperience(exp.id)} className="btn btn-danger" style={{ padding: '6px 12px', fontSize: '13px' }}>Delete</button>
                       </div>
                     </div>
-                    <p style={{ margin: '8px 0 0', fontSize: '14px', whiteSpace: 'pre-wrap', color: 'var(--text-h)' }}>{exp.description}</p>
+                    <p style={{ margin: '8px 0', fontSize: '14px', whiteSpace: 'pre-wrap', color: 'var(--text-h)', opacity: 0.8 }}>{exp.description}</p>
+                    
+                    {/* Render Linked Atomic Facts */}
+                    <div className="linked-facts-box" style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                      <h4 style={{ fontSize: '13px', margin: '0 0 6px 0', color: 'var(--accent)' }}>Structured Accomplishments</h4>
+                      {(experienceFacts[exp.id] || []).length === 0 ? (
+                        <p style={{ fontSize: '12px', opacity: 0.6, margin: 0 }}>No verified accomplishments linked yet. Edit or re-ingest to run Gemini extraction.</p>
+                      ) : (
+                        <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '13px' }}>
+                          {(experienceFacts[exp.id] || []).map(fact => (
+                            <li key={fact.id} style={{ marginBottom: '6px' }}>
+                              <strong>{fact.action}</strong> {fact.metric_result ? `(${fact.metric_result})` : ''} 
+                              {fact.skills.length > 0 && (
+                                <div style={{ display: 'inline-flex', gap: '4px', marginLeft: '6px' }}>
+                                  {fact.skills.map(s => <span key={s} style={{ background: 'rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: '4px', fontSize: '10px' }}>{s}</span>)}
+                                </div>
+                              )}
+                              <button onClick={() => handleDeletePersistentFact(fact.id, exp.id, 'work-experience')} style={{ border: 'none', background: 'none', color: '#f87171', padding: '0 4px', fontSize: '11px', cursor: 'pointer', marginLeft: '8px' }}>&times;</button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -673,7 +894,7 @@ function App() {
           {activeTab === 'projects' && (
             <section className="tab-panel">
               <h2>Projects Vault</h2>
-              <p>Log details of independent/side projects and their raw descriptions.</p>
+              <p>Log details of independent/side projects and review/edit extracted AI accomplishments.</p>
               <form onSubmit={handleSaveProject} style={{ marginTop: '24px' }}>
                 <div className="form-row">
                   <div className="form-group">
@@ -697,11 +918,51 @@ function App() {
                 </div>
                 <div className="form-group">
                   <label>Raw Project Scope & Achievements *</label>
-                  <textarea required className="form-control" rows={5} value={projectForm.description} onChange={e => setProjectForm({ ...projectForm, description: e.target.value })} placeholder="Paste raw description of what the project does, key technical choices, and metrics..." style={{ resize: 'vertical', fontFamily: 'inherit' }} />
+                  <textarea required className="form-control" rows={5} value={projectForm.description} onChange={e => setProjectForm({ ...projectForm, description: e.target.value })} placeholder="Paste raw description of what the project does..." style={{ resize: 'vertical', fontFamily: 'inherit' }} />
                 </div>
+
+                {!editingProjId && (
+                  <div className="ai-actions-box" style={{ margin: '16px 0', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <h3 style={{ fontSize: '15px', marginBottom: '8px', color: 'var(--accent)' }}>AI Fact Extraction Checklist</h3>
+                    <p style={{ fontSize: '13px', margin: '0 0 12px 0', opacity: 0.8 }}>
+                      Convert raw text into reusable, structured accomplishments before adding.
+                    </p>
+                    <button type="button" onClick={() => handleExtractFacts(projectForm.description)} disabled={isExtracting} className="btn btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      {isExtracting ? 'Extracting with Gemini...' : 'Extract Accomplishments (Gemini AI)'}
+                    </button>
+                    {extractionError && <p style={{ color: '#dc2626', fontSize: '13px', marginTop: '8px' }}>{extractionError}</p>}
+
+                    {draftFacts.length > 0 && (
+                      <div className="draft-checklist" style={{ marginTop: '16px' }}>
+                        <h4 style={{ fontSize: '13px', marginBottom: '8px' }}>Draft Accomplishments List:</h4>
+                        {draftFacts.map((fact, index) => (
+                          <div key={index} className="draft-fact-card" style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '6px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div className="form-group" style={{ marginBottom: '6px' }}>
+                              <label style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>Action *</label>
+                              <input type="text" required className="form-control" style={{ padding: '6px', fontSize: '13px' }} value={fact.action} onChange={e => handleEditDraftFact(index, 'action', e.target.value)} />
+                            </div>
+                            <div className="form-row" style={{ gap: '8px', marginBottom: '6px' }}>
+                              <div className="form-group" style={{ flex: 1 }}>
+                                <label style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>Metric / Result (Optional)</label>
+                                <input type="text" className="form-control" style={{ padding: '6px', fontSize: '13px' }} value={fact.metric_result || ''} onChange={e => handleEditDraftFact(index, 'metric_result', e.target.value)} />
+                              </div>
+                              <div className="form-group" style={{ flex: 1 }}>
+                                <label style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>Skills (Comma Separated)</label>
+                                <input type="text" className="form-control" style={{ padding: '6px', fontSize: '13px' }} value={fact.skills.join(', ')} onChange={e => handleEditDraftFact(index, 'skills', e.target.value)} />
+                              </div>
+                            </div>
+                            <button type="button" onClick={() => handleDeleteDraftFact(index)} className="btn btn-danger" style={{ padding: '4px 8px', fontSize: '11px' }}>Exclude</button>
+                          </div>
+                        ))}
+                        <button type="button" onClick={handleAddDraftFact} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', marginTop: '4px' }}>+ Add Manual Accomplishment</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {saveProjError && <p style={{ color: '#dc2626' }}>{saveProjError}</p>}
                 <div className="actions-container">
-                  <button type="submit" className="btn btn-primary">{editingProjId ? 'Save Changes' : 'Add Project'}</button>
+                  <button type="submit" className="btn btn-primary">{editingProjId ? 'Save Changes' : 'Save Project to Vault'}</button>
                   {editingProjId && <button type="button" onClick={() => { setEditingProjId(null); setProjectForm({ name: '', description: '', start_date: '', end_date: '', url: '' }); }} className="btn btn-secondary">Cancel</button>}
                 </div>
               </form>
@@ -719,7 +980,29 @@ function App() {
                         <button onClick={() => handleDeleteProject(proj.id)} className="btn btn-danger" style={{ padding: '6px 12px', fontSize: '13px' }}>Delete</button>
                       </div>
                     </div>
-                    <p style={{ margin: '8px 0 0', fontSize: '14px', whiteSpace: 'pre-wrap', color: 'var(--text-h)' }}>{proj.description}</p>
+                    <p style={{ margin: '8px 0', fontSize: '14px', whiteSpace: 'pre-wrap', color: 'var(--text-h)', opacity: 0.8 }}>{proj.description}</p>
+                    
+                    {/* Render Linked Atomic Facts */}
+                    <div className="linked-facts-box" style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                      <h4 style={{ fontSize: '13px', margin: '0 0 6px 0', color: 'var(--accent)' }}>Structured Accomplishments</h4>
+                      {(projectFacts[proj.id] || []).length === 0 ? (
+                        <p style={{ fontSize: '12px', opacity: 0.6, margin: 0 }}>No verified accomplishments linked yet. Edit or re-ingest to run Gemini extraction.</p>
+                      ) : (
+                        <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '13px' }}>
+                          {(projectFacts[proj.id] || []).map(fact => (
+                            <li key={fact.id} style={{ marginBottom: '6px' }}>
+                              <strong>{fact.action}</strong> {fact.metric_result ? `(${fact.metric_result})` : ''} 
+                              {fact.skills.length > 0 && (
+                                <div style={{ display: 'inline-flex', gap: '4px', marginLeft: '6px' }}>
+                                  {fact.skills.map(s => <span key={s} style={{ background: 'rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: '4px', fontSize: '10px' }}>{s}</span>)}
+                                </div>
+                              )}
+                              <button onClick={() => handleDeletePersistentFact(fact.id, proj.id, 'project')} style={{ border: 'none', background: 'none', color: '#f87171', padding: '0 4px', fontSize: '11px', cursor: 'pointer', marginLeft: '8px' }}>&times;</button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -729,7 +1012,7 @@ function App() {
           {activeTab === 'hackathons' && (
             <section className="tab-panel">
               <h2>Hackathons & Awards</h2>
-              <p>Log details of competitions, hackathons, and awards.</p>
+              <p>Log details of competitions/hackathons and review/edit extracted AI accomplishments.</p>
               <form onSubmit={handleSaveHackathon} style={{ marginTop: '24px' }}>
                 <div className="form-row">
                   <div className="form-group">
@@ -753,11 +1036,51 @@ function App() {
                 </div>
                 <div className="form-group">
                   <label>Raw Accomplishments & Tech Stack *</label>
-                  <textarea required className="form-control" rows={5} value={hackathonForm.description} onChange={e => setHackathonForm({ ...hackathonForm, description: e.target.value })} placeholder="Describe what you built in the hackathon, your contribution, and the results..." style={{ resize: 'vertical', fontFamily: 'inherit' }} />
+                  <textarea required className="form-control" rows={5} value={hackathonForm.description} onChange={e => setHackathonForm({ ...hackathonForm, description: e.target.value })} placeholder="Describe what you built in the hackathon..." style={{ resize: 'vertical', fontFamily: 'inherit' }} />
                 </div>
+
+                {!editingHackId && (
+                  <div className="ai-actions-box" style={{ margin: '16px 0', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <h3 style={{ fontSize: '15px', marginBottom: '8px', color: 'var(--accent)' }}>AI Fact Extraction Checklist</h3>
+                    <p style={{ fontSize: '13px', margin: '0 0 12px 0', opacity: 0.8 }}>
+                      Convert raw text into reusable, structured accomplishments before adding.
+                    </p>
+                    <button type="button" onClick={() => handleExtractFacts(hackathonForm.description)} disabled={isExtracting} className="btn btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      {isExtracting ? 'Extracting with Gemini...' : 'Extract Accomplishments (Gemini AI)'}
+                    </button>
+                    {extractionError && <p style={{ color: '#dc2626', fontSize: '13px', marginTop: '8px' }}>{extractionError}</p>}
+
+                    {draftFacts.length > 0 && (
+                      <div className="draft-checklist" style={{ marginTop: '16px' }}>
+                        <h4 style={{ fontSize: '13px', marginBottom: '8px' }}>Draft Accomplishments List:</h4>
+                        {draftFacts.map((fact, index) => (
+                          <div key={index} className="draft-fact-card" style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '6px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div className="form-group" style={{ marginBottom: '6px' }}>
+                              <label style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>Action *</label>
+                              <input type="text" required className="form-control" style={{ padding: '6px', fontSize: '13px' }} value={fact.action} onChange={e => handleEditDraftFact(index, 'action', e.target.value)} />
+                            </div>
+                            <div className="form-row" style={{ gap: '8px', marginBottom: '6px' }}>
+                              <div className="form-group" style={{ flex: 1 }}>
+                                <label style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>Metric / Result (Optional)</label>
+                                <input type="text" className="form-control" style={{ padding: '6px', fontSize: '13px' }} value={fact.metric_result || ''} onChange={e => handleEditDraftFact(index, 'metric_result', e.target.value)} />
+                              </div>
+                              <div className="form-group" style={{ flex: 1 }}>
+                                <label style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>Skills (Comma Separated)</label>
+                                <input type="text" className="form-control" style={{ padding: '6px', fontSize: '13px' }} value={fact.skills.join(', ')} onChange={e => handleEditDraftFact(index, 'skills', e.target.value)} />
+                              </div>
+                            </div>
+                            <button type="button" onClick={() => handleDeleteDraftFact(index)} className="btn btn-danger" style={{ padding: '4px 8px', fontSize: '11px' }}>Exclude</button>
+                          </div>
+                        ))}
+                        <button type="button" onClick={handleAddDraftFact} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', marginTop: '4px' }}>+ Add Manual Accomplishment</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {saveHackError && <p style={{ color: '#dc2626' }}>{saveHackError}</p>}
                 <div className="actions-container">
-                  <button type="submit" className="btn btn-primary">{editingHackId ? 'Save Changes' : 'Add Hackathon'}</button>
+                  <button type="submit" className="btn btn-primary">{editingHackId ? 'Save Changes' : 'Save Hackathon to Vault'}</button>
                   {editingHackId && <button type="button" onClick={() => { setEditingHackId(null); setHackathonForm({ name: '', organization: '', date: '', role_placement: '', description: '' }); }} className="btn btn-secondary">Cancel</button>}
                 </div>
               </form>
@@ -775,7 +1098,29 @@ function App() {
                         <button onClick={() => handleDeleteHackathon(hack.id)} className="btn btn-danger" style={{ padding: '6px 12px', fontSize: '13px' }}>Delete</button>
                       </div>
                     </div>
-                    <p style={{ margin: '8px 0 0', fontSize: '14px', whiteSpace: 'pre-wrap', color: 'var(--text-h)' }}>{hack.description}</p>
+                    <p style={{ margin: '8px 0', fontSize: '14px', whiteSpace: 'pre-wrap', color: 'var(--text-h)', opacity: 0.8 }}>{hack.description}</p>
+                    
+                    {/* Render Linked Atomic Facts */}
+                    <div className="linked-facts-box" style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                      <h4 style={{ fontSize: '13px', margin: '0 0 6px 0', color: 'var(--accent)' }}>Structured Accomplishments</h4>
+                      {(hackathonFacts[hack.id] || []).length === 0 ? (
+                        <p style={{ fontSize: '12px', opacity: 0.6, margin: 0 }}>No verified accomplishments linked yet. Edit or re-ingest to run Gemini extraction.</p>
+                      ) : (
+                        <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '13px' }}>
+                          {(hackathonFacts[hack.id] || []).map(fact => (
+                            <li key={fact.id} style={{ marginBottom: '6px' }}>
+                              <strong>{fact.action}</strong> {fact.metric_result ? `(${fact.metric_result})` : ''} 
+                              {fact.skills.length > 0 && (
+                                <div style={{ display: 'inline-flex', gap: '4px', marginLeft: '6px' }}>
+                                  {fact.skills.map(s => <span key={s} style={{ background: 'rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: '4px', fontSize: '10px' }}>{s}</span>)}
+                                </div>
+                              )}
+                              <button onClick={() => handleDeletePersistentFact(fact.id, hack.id, 'hackathon')} style={{ border: 'none', background: 'none', color: '#f87171', padding: '0 4px', fontSize: '11px', cursor: 'pointer', marginLeft: '8px' }}>&times;</button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

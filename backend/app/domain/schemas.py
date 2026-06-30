@@ -95,3 +95,25 @@ class Hackathon(HackathonBase):
     profile_id: UUID
     model_config = ConfigDict(from_attributes=True)
 
+
+# --- ATOMIC FACT SCHEMAS ---
+
+class AtomicFactBase(BaseModel):
+    action: str = Field(..., min_length=1, description="Active past-tense description of task or action taken")
+    metric_result: Optional[str] = Field(None, description="Measurable metric or benefit, if any")
+    skills: list[str] = Field(default_factory=list, description="List of technologies/skills applied")
+
+class AtomicFactCreate(AtomicFactBase):
+    work_experience_id: Optional[UUID] = None
+    project_id: Optional[UUID] = None
+    hackathon_id: Optional[UUID] = None
+
+class AtomicFact(AtomicFactBase):
+    id: UUID
+    work_experience_id: Optional[UUID] = None
+    project_id: Optional[UUID] = None
+    hackathon_id: Optional[UUID] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+

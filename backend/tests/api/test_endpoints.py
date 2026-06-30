@@ -2,11 +2,13 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import SQLModel, Session, create_engine
 from sqlalchemy.pool import StaticPool
+from unittest.mock import MagicMock, patch
 from app.main import app
 from app.persistence.db import get_session
 from app.persistence.models import (
     ProfileTable, EducationTable,
-    WorkExperienceTable, ProjectTable, HackathonTable
+    WorkExperienceTable, ProjectTable, HackathonTable,
+    AtomicFactTable
 )
 
 # Configure in-memory SQLite for isolated API endpoint testing
@@ -231,3 +233,78 @@ def test_profile_and_education_endpoints_workflow():
     response = client.delete(f"/api/hackathon/{hack_id}")
     assert response.status_code == 200
     assert response.json() == {"success": True, "detail": "Hackathon record deleted"}
+
+    # 21. POST fact/extract - expected 200 (ok)
+    with patch("google.generativeai.GenerativeModel") as mock_model_class:
+        mock_model_instance = MagicMock()
+        mock_model_class.return_value = mock_model_instance
+        mock_response = MagicMock()
+        mock_response.text = """
+        [
+          {
+            "action": "Built cloud backend",
+            "metric_result": "improving database throughput by 40%",
+            "skills": ["Python", "FastAPI"]
+          }
+        ]
+        """
+        mock_model_instance.generate_content.return_value = mock_response
+
+        response = client.post("/api/fact/extract", json={"raw_description": "Built cloud backend with FastAPI."})
+        assert response.status_code == 200
+        extracted = response.json()
+        assert len(extracted) == 1
+        assert extracted[0]["action"] == "Built cloud backend"
+        assert extracted[0]["skills"] == ["Python", "FastAPI"]
+
+    # Let's create a work experience container first
+    exp_data = {
+        "employer": "Acme Corp",
+        "role": "Software Engineer",
+        "location": "Boston, MA",
+        "start_date": "2020-01",
+        "end_date": "Present",
+        "description": "Built cloud backend.",
+        "profile_id": profile_id
+    }
+    response = client.post("/api/work-experience", json=exp_data)
+    assert response.status_code == 201
+    exp_id = response.json()["id"]
+
+    # 22. POST fact - expected 201 (created)
+    fact_data = {
+        "action": "Designed backend CORS API",
+        "metric_result": "reducing latency by 10%",
+        "skills": ["FastAPI", "CORS"],
+        "work_experience_id": exp_id
+    }
+    response = client.post("/api/fact", json=fact_data)
+    assert response.status_code == 201
+    fact = response.json()
+    assert fact["action"] == "Designed backend CORS API"
+    fact_id = fact["id"]
+
+    # 23. GET fact by work-experience - expected list with 1 item
+    response = client.get(f"/api/fact/work-experience/{exp_id}")
+    assert response.status_code == 200
+    facts = response.json()
+    assert len(facts) == 1
+    assert facts[0]["id"] == fact_id
+    assert facts[0]["skills"] == ["FastAPI", "CORS"]
+
+    # 24. PUT fact - expected 200 (ok)
+    fact_update = {
+        "action": "Designed scalable backend CORS API",
+        "metric_result": "reducing latency by 15%",
+        "skills": ["FastAPI", "CORS", "Docker"],
+        "work_experience_id": exp_id
+    }
+    response = client.put(f"/api/fact/{fact_id}", json=fact_update)
+    assert response.status_code == 200
+    assert response.json()["action"] == "Designed scalable backend CORS API"
+    assert response.json()["skills"] == ["FastAPI", "CORS", "Docker"]
+
+    # 25. DELETE fact - expected 200 (ok)
+    response = client.delete(f"/api/fact/{fact_id}")
+    assert response.status_code == 200
+    assert response.json() == {"success": True, "detail": "Atomic fact deleted"}

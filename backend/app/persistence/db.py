@@ -18,7 +18,8 @@ def init_db() -> None:
     # Import models here to ensure metadata is registered before creation
     from app.persistence.models import (
         ProfileTable, EducationTable,
-        WorkExperienceTable, ProjectTable, HackathonTable
+        WorkExperienceTable, ProjectTable, HackathonTable,
+        AtomicFactTable
     )
     SQLModel.metadata.create_all(engine)
 

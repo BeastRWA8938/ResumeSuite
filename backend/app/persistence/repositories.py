@@ -3,17 +3,20 @@ from typing import Optional, List
 from uuid import UUID
 from app.domain.repositories import (
     ProfileRepository, EducationRepository, 
-    WorkExperienceRepository, ProjectRepository, HackathonRepository
+    WorkExperienceRepository, ProjectRepository, HackathonRepository,
+    AtomicFactRepository
 )
 from app.domain.schemas import (
     Profile, ProfileCreate, Education, EducationCreate,
     WorkExperience, WorkExperienceCreate,
     Project, ProjectCreate,
-    Hackathon, HackathonCreate
+    Hackathon, HackathonCreate,
+    AtomicFact, AtomicFactCreate
 )
 from app.persistence.models import (
     ProfileTable, EducationTable,
-    WorkExperienceTable, ProjectTable, HackathonTable
+    WorkExperienceTable, ProjectTable, HackathonTable,
+    AtomicFactTable
 )
 
 class SQLProfileRepository(ProfileRepository):
@@ -261,3 +264,99 @@ class SQLHackathonRepository(HackathonRepository):
         self.session.delete(db_hack)
         self.session.commit()
         return True
+
+
+import json
+
+class SQLAtomicFactRepository(AtomicFactRepository):
+    """SQLModel concrete implementation of AtomicFactRepository."""
+
+    def __init__(self, session: Session):
+        self.session = session
+
+    def _to_schema(self, row: AtomicFactTable) -> AtomicFact:
+        """Converts an AtomicFactTable db row to an AtomicFact Pydantic schema."""
+        try:
+            skills = json.loads(row.skills)
+            if not isinstance(skills, list):
+                skills = []
+        except Exception:
+            skills = []
+        return AtomicFact(
+            id=row.id,
+            action=row.action,
+            metric_result=row.metric_result,
+            skills=skills,
+            work_experience_id=row.work_experience_id,
+            project_id=row.project_id,
+            hackathon_id=row.hackathon_id
+        )
+
+    def save(self, fact: AtomicFactCreate) -> AtomicFact:
+        """Saves a new atomic fact entry and returns the persisted entity."""
+        db_fact = AtomicFactTable(
+            action=fact.action,
+            metric_result=fact.metric_result,
+            skills=json.dumps(fact.skills),
+            work_experience_id=fact.work_experience_id,
+            project_id=fact.project_id,
+            hackathon_id=fact.hackathon_id
+        )
+        self.session.add(db_fact)
+        self.session.commit()
+        self.session.refresh(db_fact)
+        return self._to_schema(db_fact)
+
+    def get_by_id(self, id: UUID) -> Optional[AtomicFact]:
+        """Retrieves an atomic fact entry by ID."""
+        db_fact = self.session.get(AtomicFactTable, id)
+        if not db_fact:
+            return None
+        return self._to_schema(db_fact)
+
+    def get_by_work_experience(self, exp_id: UUID) -> List[AtomicFact]:
+        """Retrieves all atomic facts associated with a work experience ID."""
+        statement = select(AtomicFactTable).where(AtomicFactTable.work_experience_id == exp_id)
+        db_facts = self.session.exec(statement).all()
+        return [self._to_schema(item) for item in db_facts]
+
+    def get_by_project(self, project_id: UUID) -> List[AtomicFact]:
+        """Retrieves all atomic facts associated with a project ID."""
+        statement = select(AtomicFactTable).where(AtomicFactTable.project_id == project_id)
+        db_facts = self.session.exec(statement).all()
+        return [self._to_schema(item) for item in db_facts]
+
+    def get_by_hackathon(self, hackathon_id: UUID) -> List[AtomicFact]:
+        """Retrieves all atomic facts associated with a hackathon ID."""
+        statement = select(AtomicFactTable).where(AtomicFactTable.hackathon_id == hackathon_id)
+        db_facts = self.session.exec(statement).all()
+        return [self._to_schema(item) for item in db_facts]
+
+    def update(self, id: UUID, fact: AtomicFactCreate) -> Optional[AtomicFact]:
+        """Updates an existing atomic fact entry and returns the updated entity."""
+        db_fact = self.session.get(AtomicFactTable, id)
+        if not db_fact:
+            return None
+
+        db_fact.action = fact.action
+        db_fact.metric_result = fact.metric_result
+        db_fact.skills = json.dumps(fact.skills)
+        db_fact.work_experience_id = fact.work_experience_id
+        db_fact.project_id = fact.project_id
+        db_fact.hackathon_id = fact.hackathon_id
+        
+        self.session.add(db_fact)
+        self.session.commit()
+        self.session.refresh(db_fact)
+        return self._to_schema(db_fact)
+
+    def delete(self, id: UUID) -> bool:
+        """Deletes an atomic fact record by ID."""
+        db_fact = self.session.get(AtomicFactTable, id)
+        if not db_fact:
+            return False
+        
+        self.session.delete(db_fact)
+        self.session.commit()
+        return True
+

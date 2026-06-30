@@ -6,7 +6,8 @@ from app.domain.schemas import (
     Education, EducationCreate,
     WorkExperience, WorkExperienceCreate,
     Project, ProjectCreate,
-    Hackathon, HackathonCreate
+    Hackathon, HackathonCreate,
+    AtomicFact, AtomicFactCreate
 )
 
 class ProfileRepository(ABC):
@@ -137,3 +138,43 @@ class HackathonRepository(ABC):
     def delete(self, id: UUID) -> bool:
         """Deletes a hackathon record by ID. Returns True if deleted, False otherwise."""
         pass
+
+
+class AtomicFactRepository(ABC):
+    """Abstract Interface for managing Atomic Facts persistence."""
+
+    @abstractmethod
+    def save(self, fact: AtomicFactCreate) -> AtomicFact:
+        """Saves a new atomic fact entry and returns the persisted entity."""
+        pass
+
+    @abstractmethod
+    def get_by_id(self, id: UUID) -> Optional[AtomicFact]:
+        """Retrieves an atomic fact entry by ID."""
+        pass
+
+    @abstractmethod
+    def get_by_work_experience(self, exp_id: UUID) -> List[AtomicFact]:
+        """Retrieves all atomic facts associated with a work experience ID."""
+        pass
+
+    @abstractmethod
+    def get_by_project(self, project_id: UUID) -> List[AtomicFact]:
+        """Retrieves all atomic facts associated with a project ID."""
+        pass
+
+    @abstractmethod
+    def get_by_hackathon(self, hackathon_id: UUID) -> List[AtomicFact]:
+        """Retrieves all atomic facts associated with a hackathon ID."""
+        pass
+
+    @abstractmethod
+    def update(self, id: UUID, fact: AtomicFactCreate) -> Optional[AtomicFact]:
+        """Updates an existing atomic fact entry and returns the updated entity."""
+        pass
+
+    @abstractmethod
+    def delete(self, id: UUID) -> bool:
+        """Deletes an atomic fact record by ID. Returns True if deleted, False otherwise."""
+        pass
+

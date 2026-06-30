@@ -48,10 +48,8 @@ def test_profile_table_instantiation():
     assert profile_db.name == "Rushikesh"
 
 
-# --- NEW WORK EXPERIENCE, PROJECT, & HACKATHON UNIT TESTS ---
-
-from app.domain.schemas import WorkExperienceCreate, ProjectCreate, HackathonCreate
-from app.persistence.models import WorkExperienceTable, ProjectTable, HackathonTable
+from app.domain.schemas import WorkExperienceCreate, ProjectCreate, HackathonCreate, AtomicFactCreate
+from app.persistence.models import WorkExperienceTable, ProjectTable, HackathonTable, AtomicFactTable
 
 def test_work_experience_validation_and_instantiation():
     profile_id = generate_uuid7()
@@ -143,4 +141,33 @@ def test_hackathon_validation_and_instantiation():
     assert isinstance(hack_db.id, UUID)
     assert hack_db.id.version == 7
     assert hack_db.name == "MIT Hackathon 2024"
+
+
+def test_atomic_fact_validation_and_instantiation():
+    """Verify that AtomicFact schemas and tables parse inputs and map fields correctly."""
+    work_id = generate_uuid7()
+    
+    # 1. Pydantic validation check
+    fact_in = AtomicFactCreate(
+        action="Refactored SQL query pipeline",
+        metric_result="speeding up loading by 30%",
+        skills=["Python", "SQLModel"],
+        work_experience_id=work_id
+    )
+    assert fact_in.action == "Refactored SQL query pipeline"
+    assert fact_in.skills == ["Python", "SQLModel"]
+    assert fact_in.work_experience_id == work_id
+
+    # 2. SQLModel instantiation check (skills stored as JSON string)
+    import json
+    fact_db = AtomicFactTable(
+        action="Refactored SQL query pipeline",
+        metric_result="speeding up loading by 30%",
+        skills=json.dumps(["Python", "SQLModel"]),
+        work_experience_id=work_id
+    )
+    assert isinstance(fact_db.id, UUID)
+    assert fact_db.id.version == 7
+    assert json.loads(fact_db.skills) == ["Python", "SQLModel"]
+
 
