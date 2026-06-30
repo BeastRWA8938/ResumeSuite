@@ -1,4 +1,4 @@
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import App from '../App';
 
@@ -29,6 +29,19 @@ describe('App Dashboard Component', () => {
         data = [];
       } else if (url.includes('/api/fact/hackathon/')) {
         data = [];
+      } else if (url.includes('/api/fact/rank')) {
+        data = [
+          {
+            fact: {
+              id: "test-fact-uuid",
+              action: "Saved fact",
+              metric_result: "improved build times",
+              skills: ["Vite"]
+            },
+            score: 0.85,
+            matched_keywords: ["Vite", "build"]
+          }
+        ];
       } else if (url.includes('/api/fact/extract')) {
         data = [
           {
@@ -76,5 +89,55 @@ describe('App Dashboard Component', () => {
 
     const successBanner = screen.getByText(/System verified and ready/i);
     expect(successBanner).toBeInTheDocument();
+  });
+
+  it('renders relevance ranking tailoring workspace and triggers scoring', async () => {
+    await act(async () => {
+      render(<App />);
+    });
+
+    // Navigate to tailoring workspace tab
+    const tailorTabBtn = screen.getByRole('button', { name: /Resume Tailoring Workspace/i });
+    expect(tailorTabBtn).toBeInTheDocument();
+    
+    await act(async () => {
+      fireEvent.click(tailorTabBtn);
+    });
+
+    // Verify workspace elements are rendered
+    const workspaceHeading = screen.getByRole('heading', { level: 2, name: /Resume Tailoring Workspace/i });
+    expect(workspaceHeading).toBeInTheDocument();
+
+    const companyInput = screen.getByLabelText(/Company Name \/ Context/i);
+    const jdTextarea = screen.getByLabelText(/Job Description Text/i);
+    const rankBtn = screen.getByRole('button', { name: /Calculate Relevance Rankings/i });
+
+    expect(companyInput).toBeInTheDocument();
+    expect(jdTextarea).toBeInTheDocument();
+    expect(rankBtn).toBeInTheDocument();
+
+    // Trigger validation error on blank click
+    await act(async () => {
+      fireEvent.click(rankBtn);
+    });
+    const validationMessage = screen.getByText(/Company Name \/ Context is required before ranking./i);
+    expect(validationMessage).toBeInTheDocument();
+
+    // Input values
+    fireEvent.change(companyInput, { target: { value: 'Google' } });
+    fireEvent.change(jdTextarea, { target: { value: 'Looking for Vite developers.' } });
+
+    // Submit
+    await act(async () => {
+      fireEvent.click(rankBtn);
+    });
+
+    // Expect score badge results to render
+    const scoreBadge = await screen.findByText(/Match: 85%/i);
+    expect(scoreBadge).toBeInTheDocument();
+    
+    // Expect matching keyword badge to render
+    const keywordBadges = screen.getAllByText(/Vite/i);
+    expect(keywordBadges.length).toBeGreaterThan(0);
   });
 });

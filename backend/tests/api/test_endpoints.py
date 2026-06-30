@@ -410,3 +410,41 @@ def test_profile_and_education_endpoints_workflow():
     new_row = next(f for f in final_facts if f["id"] != first_fact_id)
     assert new_row["action"] == "Configured database indexes"
 
+    # 27. POST fact/rank - expected 200 (ok)
+    with patch("google.generativeai.GenerativeModel") as mock_model_class:
+        mock_model_instance = MagicMock()
+        mock_model_class.return_value = mock_model_instance
+        mock_response = MagicMock()
+        mock_response.text = f"""
+        [
+          {{
+            "id": "{str(first_fact_id)}",
+            "score": 0.85,
+            "matched_keywords": ["database", "SQLite"]
+          }}
+        ]
+        """
+        mock_model_instance.generate_content.return_value = mock_response
+
+        # Fetch facts to rank
+        response = client.get(f"/api/fact/work-experience/{exp_id}")
+        assert response.status_code == 200
+        facts_to_rank = response.json()
+
+        payload = {
+            "facts": facts_to_rank,
+            "job_description": "SQLite database developer role",
+            "company_context": "Acme Inc"
+        }
+        response = client.post("/api/fact/rank", json=payload)
+        assert response.status_code == 200
+        ranked_results = response.json()
+        
+        # Verify both inputs are returned, first ranked at 0.85, second fallback at 0.0
+        assert len(ranked_results) == 2
+        assert ranked_results[0]["fact"]["id"] == str(first_fact_id)
+        assert ranked_results[0]["score"] == 0.85
+        assert ranked_results[0]["matched_keywords"] == ["database", "SQLite"]
+        assert ranked_results[1]["score"] == 0.0
+
+

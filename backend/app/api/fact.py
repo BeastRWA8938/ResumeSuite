@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 from uuid import UUID
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
-from app.domain.schemas import AtomicFact, AtomicFactCreate, AtomicFactMerge
+from app.domain.schemas import AtomicFact, AtomicFactCreate, AtomicFactMerge, FactRankResult
 from app.persistence.db import get_session
 from app.persistence.repositories import SQLAtomicFactRepository
-from app.infrastructure.services import GeminiFactExtractionService
+from app.infrastructure.services import GeminiFactExtractionService, GeminiRelevanceRankingService
 
 router = APIRouter(prefix="/api/fact", tags=["Atomic Fact"])
 
@@ -102,4 +102,28 @@ def merge_atomic_facts(req: MergeRequest, session: Session = Depends(get_session
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Fact merge operations failed: {e}"
         )
+
+
+class RankRequest(BaseModel):
+    facts: List[AtomicFact]
+    job_description: str
+    company_context: Optional[str] = None
+
+@router.post("/rank", response_model=List[FactRankResult])
+def rank_atomic_facts(req: RankRequest):
+    """Calculates semantic similarity scores for all candidate facts matching a target Job Description."""
+    service = GeminiRelevanceRankingService()
+    try:
+        return service.rank_facts(req.facts, req.job_description, req.company_context)
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(ve)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Relevance ranking failed: {e}"
+        )
+
 

@@ -86,3 +86,69 @@ def test_gemini_fact_extraction_merge_flow(mock_model_class):
     assert facts[1].id is None
     assert facts[1].status == "new"
     assert facts[1].action == "Added Prometheus monitoring"
+
+
+from app.domain.schemas import FactRankResult
+from app.infrastructure.services import GeminiRelevanceRankingService
+
+@patch("google.generativeai.GenerativeModel")
+def test_gemini_relevance_ranking_service_flow(mock_model_class):
+    """Verify that GeminiRelevanceRankingService scores facts and returns sorted results."""
+    mock_model_instance = MagicMock()
+    mock_model_class.return_value = mock_model_instance
+    
+    fact_id1 = UUID("e2a9b3c4-1234-5678-abcd-1234567890ab")
+    fact_id2 = UUID("7f3a2b1c-9012-3456-789a-bcde12345678")
+    fact_id3 = UUID("1a2b3c4d-5678-9012-3456-789abcdef012") # will remain unranked in response
+    
+    # Mock LLM response
+    mock_response = MagicMock()
+    mock_response.text = f"""
+    [
+      {{
+        "id": "{str(fact_id2)}",
+        "score": 0.45,
+        "matched_keywords": ["SQLite"]
+      }},
+      {{
+        "id": "{str(fact_id1)}",
+        "score": 0.90,
+        "matched_keywords": ["FastAPI", "CORS"]
+      }}
+    ]
+    """
+    mock_model_instance.generate_content.return_value = mock_response
+
+    facts = [
+        AtomicFact(id=fact_id1, action="Built CORS API in FastAPI", skills=["FastAPI"]),
+        AtomicFact(id=fact_id2, action="Optimized SQLite query cache", skills=["SQLite"]),
+        AtomicFact(id=fact_id3, action="Wrote Java unit tests", skills=["Java"])
+    ]
+
+    service = GeminiRelevanceRankingService(api_key="mock-api-key")
+    ranked_results = service.rank_facts(
+        facts=facts,
+        job_description="Looking for FastAPI developers with basic SQLite knowledge.",
+        company_context="Acme Tech"
+    )
+
+    # Verify length (all 3 input facts should be returned, including the unranked one with 0.0 score)
+    assert len(ranked_results) == 3
+
+    # Verify descending sort order
+    assert ranked_results[0].fact.id == fact_id1
+    assert ranked_results[0].score == 0.90
+    assert ranked_results[0].matched_keywords == ["FastAPI", "CORS"]
+
+    assert ranked_results[1].fact.id == fact_id2
+    assert ranked_results[1].score == 0.45
+    assert ranked_results[1].matched_keywords == ["SQLite"]
+
+    # Verify unranked fallback
+    assert ranked_results[2].fact.id == fact_id3
+    assert ranked_results[2].score == 0.0
+    assert ranked_results[2].matched_keywords == []
+
+    # Verify model parameters
+    mock_model_class.assert_called_once_with("gemini-2.5-flash")
+

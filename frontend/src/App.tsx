@@ -81,7 +81,7 @@ interface AtomicFactCreate {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'profile' | 'education' | 'experience' | 'projects' | 'hackathons'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'profile' | 'education' | 'experience' | 'projects' | 'hackathons' | 'tailor'>('overview');
   const [connection, setConnection] = useState<'checking' | 'connected' | 'disconnected'>('checking');
   const [backendData, setBackendData] = useState<BackendHealth | null>(null);
 
@@ -158,6 +158,14 @@ function App() {
   const [draftFacts, setDraftFacts] = useState<AtomicFactCreate[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionError, setExtractionError] = useState<string | null>(null);
+
+  // Relevance Ranking states
+  const [jobDescription, setJobDescription] = useState('');
+  const [companyContext, setCompanyContext] = useState('');
+  const [rankingResults, setRankingResults] = useState<any[]>([]);
+  const [isRanking, setIsRanking] = useState(false);
+  const [rankingError, setRankingError] = useState<string | null>(null);
+  const [attemptedRanking, setAttemptedRanking] = useState(false);
 
   // 1. Connection check and initial retrieval
   useEffect(() => {
@@ -310,6 +318,46 @@ function App() {
       setExtractionError(err.message || 'AI extraction failed.');
     } finally {
       setIsExtracting(false);
+    }
+  };
+
+  // --- RELEVANCE RANKING HANDLER ---
+
+  const handleCalculateRankings = async () => {
+    setAttemptedRanking(true);
+    if (!jobDescription.trim() || !companyContext.trim()) {
+      return;
+    }
+    setIsRanking(true);
+    setRankingError(null);
+
+    // Collect all facts currently loaded in local state
+    const allFacts = [
+      ...Object.values(experienceFacts).flat(),
+      ...Object.values(projectFacts).flat(),
+      ...Object.values(hackathonFacts).flat()
+    ].filter(f => f && f.id);
+
+    try {
+      const response = await fetch('http://localhost:8000/api/fact/rank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          facts: allFacts,
+          job_description: jobDescription,
+          company_context: companyContext
+        })
+      });
+      if (!response.ok) {
+        const errorDetail = await response.json();
+        throw new Error(errorDetail.detail || 'Ranking endpoint failed');
+      }
+      const data = await response.json();
+      setRankingResults(data);
+    } catch (err: any) {
+      setRankingError(err.message || 'Relevance ranking failed.');
+    } finally {
+      setIsRanking(false);
     }
   };
 
@@ -565,6 +613,22 @@ function App() {
     }
   };
 
+  const getParentName = (fact: any) => {
+    if (fact.work_experience_id) {
+      const exp = experienceList.find(e => e.id === fact.work_experience_id);
+      return exp ? `Experience: ${exp.employer} (${exp.role})` : 'Work Experience';
+    }
+    if (fact.project_id) {
+      const proj = projectList.find(p => p.id === fact.project_id);
+      return proj ? `Project: ${proj.name}` : 'Project';
+    }
+    if (fact.hackathon_id) {
+      const hack = hackathonList.find(h => h.id === fact.hackathon_id);
+      return hack ? `Hackathon: ${hack.name}` : 'Hackathon';
+    }
+    return 'General Vault Fact';
+  };
+
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
@@ -614,6 +678,9 @@ function App() {
           </button>
           <button onClick={() => setActiveTab('hackathons')} className={`sidebar-btn ${activeTab === 'hackathons' ? 'active' : ''}`} disabled={!profile} title={!profile ? "Create Profile first" : ""}>
             Hackathons & Awards
+          </button>
+          <button onClick={() => setActiveTab('tailor')} className={`sidebar-btn ${activeTab === 'tailor' ? 'active' : ''}`} disabled={!profile} title={!profile ? "Create Profile first" : ""}>
+            Resume Tailoring Workspace
           </button>
         </aside>
 
@@ -810,7 +877,11 @@ function App() {
                       Convert raw text into reusable, structured accomplishments before adding.
                     </p>
                     <button type="button" onClick={() => handleExtractFacts(experienceForm.description)} disabled={isExtracting} className="btn btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                      {isExtracting ? 'Extracting with Gemini...' : 'Extract Accomplishments (Gemini AI)'}
+                      {isExtracting ? (
+                        <>
+                          <span className="spinner"></span> Extracting with Gemini...
+                        </>
+                      ) : 'Extract Accomplishments (Gemini AI)'}
                     </button>
                     {extractionError && <p style={{ color: '#dc2626', fontSize: '13px', marginTop: '8px' }}>{extractionError}</p>}
 
@@ -821,7 +892,14 @@ function App() {
                           <div key={index} className="draft-fact-card" style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '6px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                             <div className="form-group" style={{ marginBottom: '6px' }}>
                               <label style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>Action *</label>
-                              <input type="text" required className="form-control" style={{ padding: '6px', fontSize: '13px' }} value={fact.action} onChange={e => handleEditDraftFact(index, 'action', e.target.value)} />
+                              <textarea
+                                required
+                                className="form-control"
+                                style={{ padding: '6px', fontSize: '13px', resize: 'vertical', width: '100%', fontFamily: 'inherit', background: 'rgba(0, 0, 0, 0.2)', color: 'white', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '4px' }}
+                                rows={2}
+                                value={fact.action}
+                                onChange={e => handleEditDraftFact(index, 'action', e.target.value)}
+                              />
                             </div>
                             <div className="form-row" style={{ gap: '8px', marginBottom: '6px' }}>
                               <div className="form-group" style={{ flex: 1 }}>
@@ -928,7 +1006,11 @@ function App() {
                       Convert raw text into reusable, structured accomplishments before adding.
                     </p>
                     <button type="button" onClick={() => handleExtractFacts(projectForm.description)} disabled={isExtracting} className="btn btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                      {isExtracting ? 'Extracting with Gemini...' : 'Extract Accomplishments (Gemini AI)'}
+                      {isExtracting ? (
+                        <>
+                          <span className="spinner"></span> Extracting with Gemini...
+                        </>
+                      ) : 'Extract Accomplishments (Gemini AI)'}
                     </button>
                     {extractionError && <p style={{ color: '#dc2626', fontSize: '13px', marginTop: '8px' }}>{extractionError}</p>}
 
@@ -939,7 +1021,14 @@ function App() {
                           <div key={index} className="draft-fact-card" style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '6px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                             <div className="form-group" style={{ marginBottom: '6px' }}>
                               <label style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>Action *</label>
-                              <input type="text" required className="form-control" style={{ padding: '6px', fontSize: '13px' }} value={fact.action} onChange={e => handleEditDraftFact(index, 'action', e.target.value)} />
+                              <textarea
+                                required
+                                className="form-control"
+                                style={{ padding: '6px', fontSize: '13px', resize: 'vertical', width: '100%', fontFamily: 'inherit', background: 'rgba(0, 0, 0, 0.2)', color: 'white', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '4px' }}
+                                rows={2}
+                                value={fact.action}
+                                onChange={e => handleEditDraftFact(index, 'action', e.target.value)}
+                              />
                             </div>
                             <div className="form-row" style={{ gap: '8px', marginBottom: '6px' }}>
                               <div className="form-group" style={{ flex: 1 }}>
@@ -1046,7 +1135,11 @@ function App() {
                       Convert raw text into reusable, structured accomplishments before adding.
                     </p>
                     <button type="button" onClick={() => handleExtractFacts(hackathonForm.description)} disabled={isExtracting} className="btn btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                      {isExtracting ? 'Extracting with Gemini...' : 'Extract Accomplishments (Gemini AI)'}
+                      {isExtracting ? (
+                        <>
+                          <span className="spinner"></span> Extracting with Gemini...
+                        </>
+                      ) : 'Extract Accomplishments (Gemini AI)'}
                     </button>
                     {extractionError && <p style={{ color: '#dc2626', fontSize: '13px', marginTop: '8px' }}>{extractionError}</p>}
 
@@ -1057,7 +1150,14 @@ function App() {
                           <div key={index} className="draft-fact-card" style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '6px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                             <div className="form-group" style={{ marginBottom: '6px' }}>
                               <label style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>Action *</label>
-                              <input type="text" required className="form-control" style={{ padding: '6px', fontSize: '13px' }} value={fact.action} onChange={e => handleEditDraftFact(index, 'action', e.target.value)} />
+                              <textarea
+                                required
+                                className="form-control"
+                                style={{ padding: '6px', fontSize: '13px', resize: 'vertical', width: '100%', fontFamily: 'inherit', background: 'rgba(0, 0, 0, 0.2)', color: 'white', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '4px' }}
+                                rows={2}
+                                value={fact.action}
+                                onChange={e => handleEditDraftFact(index, 'action', e.target.value)}
+                              />
                             </div>
                             <div className="form-row" style={{ gap: '8px', marginBottom: '6px' }}>
                               <div className="form-group" style={{ flex: 1 }}>
@@ -1123,6 +1223,190 @@ function App() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'tailor' && (
+            <section className="tab-panel">
+              <div className="workspace-header" style={{ marginBottom: '24px' }}>
+                <h2>Resume Tailoring Workspace</h2>
+                <p style={{ opacity: 0.8 }}>
+                  Input a target Job Description and Company Context to rank and sort accomplishments by relevance metrics.
+                </p>
+              </div>
+
+              <div className="workspace-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'start' }}>
+                
+                {/* Inputs Panel */}
+                <div className="card-item" style={{ padding: '24px' }}>
+                  <h3 style={{ margin: '0 0 16px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px' }}>
+                    Target Job Specification
+                  </h3>
+
+                  <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <label htmlFor="companyNameInput" style={{ display: 'block', fontSize: '13px', marginBottom: '6px', opacity: 0.8 }}>
+                      Company Name / Context <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      id="companyNameInput"
+                      type="text"
+                      className={`form-input ${attemptedRanking && !companyContext.trim() ? 'validation-highlight' : ''}`}
+                      placeholder="e.g. Acme Tech Corporation"
+                      value={companyContext}
+                      onChange={(e) => setCompanyContext(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        background: 'rgba(0, 0, 0, 0.2)',
+                        border: attemptedRanking && !companyContext.trim() ? '1px solid #ef4444' : '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '6px',
+                        color: 'white',
+                        outline: 'none'
+                      }}
+                    />
+                    {attemptedRanking && !companyContext.trim() && (
+                      <p style={{ color: '#f87171', fontSize: '12px', marginTop: '4px', margin: 0 }}>
+                        Company Name / Context is required before ranking.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '20px' }}>
+                    <label htmlFor="jdTextArea" style={{ display: 'block', fontSize: '13px', marginBottom: '6px', opacity: 0.8 }}>
+                      Job Description Text <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <textarea
+                      id="jdTextArea"
+                      className={`form-input ${attemptedRanking && !jobDescription.trim() ? 'validation-highlight' : ''}`}
+                      rows={12}
+                      placeholder="Paste the full job description or core specifications here..."
+                      value={jobDescription}
+                      onChange={(e) => setJobDescription(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        background: 'rgba(0, 0, 0, 0.2)',
+                        border: attemptedRanking && !jobDescription.trim() ? '1px solid #ef4444' : '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '6px',
+                        color: 'white',
+                        outline: 'none',
+                        resize: 'vertical',
+                        fontFamily: 'inherit'
+                      }}
+                    />
+                    {attemptedRanking && !jobDescription.trim() && (
+                      <p style={{ color: '#f87171', fontSize: '12px', marginTop: '4px', margin: 0 }}>
+                        Job Description is required before ranking.
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={handleCalculateRankings}
+                    className="btn btn-primary"
+                    disabled={isRanking}
+                    style={{ width: '100%', padding: '12px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  >
+                    {isRanking ? (
+                      <>
+                        <span className="spinner"></span> Analyzing & Scoring Relevance...
+                      </>
+                    ) : 'Calculate Relevance Rankings'}
+                  </button>
+
+                  {rankingError && (
+                    <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', color: '#f87171', fontSize: '13px' }}>
+                      {rankingError}
+                    </div>
+                  )}
+                </div>
+
+                {/* Scored Results Panel */}
+                <div className="card-item" style={{ padding: '24px', minHeight: '400px' }}>
+                  <h3 style={{ margin: '0 0 16px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px' }}>
+                    Ranked Achievements
+                  </h3>
+
+                  {rankingResults.length === 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '300px', opacity: 0.6, textAlign: 'center' }}>
+                      <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" strokeWidth="1.5" fill="none" style={{ marginBottom: '12px' }}>
+                        <path d="M19 11H5M19 11C20.1046 11 21 11.8954 21 13V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V13C3 11.8954 3.89543 11 5 11M19 11V5C19 3.89543 18.1046 3 17 3H7C5.89543 3 5 3.89543 5 5V11" />
+                      </svg>
+                      <p style={{ margin: 0, fontSize: '14px' }}>
+                        No rankings calculated yet. Enter a job description and company context on the left to score accomplishments.
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      {/* Debug Matching Keyword Log */}
+                      <div className="debug-keyword-log" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '6px', padding: '12px', marginBottom: '16px' }}>
+                        <h4 style={{ margin: '0 0 8px 0', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent)' }}>
+                          Debug Matching Keyword Log
+                        </h4>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          {Array.from(new Set(rankingResults.flatMap(r => r.matched_keywords || []))).length === 0 ? (
+                            <span style={{ fontSize: '11px', opacity: 0.6 }}>No direct keyword intersections matched.</span>
+                          ) : (
+                            Array.from(new Set(rankingResults.flatMap(r => r.matched_keywords || []))).map(keyword => (
+                              <span key={keyword} style={{ background: 'rgba(134, 59, 255, 0.15)', border: '1px solid rgba(134, 59, 255, 0.3)', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', color: '#d8b4fe' }}>
+                                {keyword}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Sorted List */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {rankingResults.map((result, idx) => {
+                          const scorePercent = Math.round(result.score * 100);
+                          let badgeColor = '#9ca3af'; // gray
+                          let badgeBg = 'rgba(156, 163, 175, 0.1)';
+                          if (result.score >= 0.7) {
+                            badgeColor = '#4ade80'; // green
+                            badgeBg = 'rgba(74, 222, 128, 0.1)';
+                          } else if (result.score >= 0.3) {
+                            badgeColor = '#fb923c'; // orange
+                            badgeBg = 'rgba(251, 146, 60, 0.1)';
+                          } else if (result.score > 0.0) {
+                            badgeColor = '#f87171'; // red
+                            badgeBg = 'rgba(248, 113, 113, 0.1)';
+                          }
+
+                          return (
+                            <div key={idx} className="card-item" style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                <span style={{ fontSize: '11px', textTransform: 'uppercase', opacity: 0.6, letterSpacing: '0.05em' }}>
+                                  {getParentName(result.fact)}
+                                </span>
+                                <span style={{ color: badgeColor, background: badgeBg, padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                                  Match: {scorePercent}%
+                                </span>
+                              </div>
+                              <p style={{ margin: '0 0 10px 0', fontSize: '13.5px', color: 'white', lineHeight: '1.4' }}>
+                                <strong>{result.fact.action}</strong>
+                                {result.fact.metric_result && ` (${result.fact.metric_result})`}
+                              </p>
+                              
+                              {/* Match Keywords Cloud */}
+                              {result.matched_keywords.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                  {result.matched_keywords.map((k: string) => (
+                                    <span key={k} style={{ background: 'rgba(74, 222, 128, 0.1)', border: '1px solid rgba(74, 222, 128, 0.2)', color: '#a7f3d0', padding: '1px 6px', borderRadius: '4px', fontSize: '10px' }}>
+                                      {k}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
               </div>
             </section>
           )}

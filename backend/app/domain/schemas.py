@@ -122,4 +122,11 @@ class AtomicFactMerge(AtomicFactBase):
     status: str = Field(..., description="Merge status: 'new' or 'update'")
 
 
+class FactRankResult(BaseModel):
+    fact: AtomicFact
+    score: float
+    matched_keywords: list[str] = []
+
+
+
 
