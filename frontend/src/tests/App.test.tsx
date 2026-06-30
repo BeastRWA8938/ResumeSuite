@@ -30,18 +30,16 @@ describe('App Dashboard Component', () => {
       } else if (url.includes('/api/fact/hackathon/')) {
         data = [];
       } else if (url.includes('/api/fact/rank')) {
-        data = [
-          {
-            fact: {
-              id: "test-fact-uuid",
-              action: "Saved fact",
-              metric_result: "improved build times",
-              skills: ["Vite"]
-            },
-            score: 0.85,
-            matched_keywords: ["Vite", "build"]
-          }
-        ];
+        data = Array.from({ length: 12 }, (_, i) => ({
+          fact: {
+            id: `test-fact-uuid-${i}`,
+            action: `Saved fact achievement number ${i}`,
+            metric_result: `metric result ${i}`,
+            skills: ["Vite"]
+          },
+          score: 0.95 - (i * 0.05),
+          matched_keywords: ["Vite"]
+        }));
       } else if (url.includes('/api/fact/extract')) {
         data = [
           {
@@ -132,12 +130,79 @@ describe('App Dashboard Component', () => {
       fireEvent.click(rankBtn);
     });
 
-    // Expect score badge results to render
-    const scoreBadge = await screen.findByText(/Match: 85%/i);
+     // Expect score badge results to render
+    const scoreBadge = await screen.findByText(/Match: 95%/i);
     expect(scoreBadge).toBeInTheDocument();
     
     // Expect matching keyword badge to render
     const keywordBadges = screen.getAllByText(/Vite/i);
     expect(keywordBadges.length).toBeGreaterThan(0);
+  });
+
+  it('enforces strict content budget selection limits', async () => {
+    await act(async () => {
+      render(<App />);
+    });
+
+    // Navigate to tailoring tab
+    const tailorTabBtn = screen.getByRole('button', { name: /Resume Tailoring Workspace/i });
+    await act(async () => {
+      fireEvent.click(tailorTabBtn);
+    });
+
+    const companyInput = screen.getByLabelText(/Company Name \/ Context/i);
+    const jdTextarea = screen.getByLabelText(/Job Description Text/i);
+    const rankBtn = screen.getByRole('button', { name: /Calculate Relevance Rankings/i });
+
+    fireEvent.change(companyInput, { target: { value: 'Google' } });
+    fireEvent.change(jdTextarea, { target: { value: 'Looking for Vite developers.' } });
+
+    // Submit rankings
+    await act(async () => {
+      fireEvent.click(rankBtn);
+    });
+
+    // Auto-selected top 10 on start
+    const budgetCounter = await screen.findByText(/Allocated Accomplishments:/i);
+    expect(budgetCounter).toHaveTextContent("10 / 10");
+
+    const proceedBtn = screen.getByRole('button', { name: /Proceed to Bullet Synthesis/i });
+    expect(proceedBtn).not.toBeDisabled();
+
+    // Checkboxes are rendered. Let's find all checkboxes.
+    const checkboxes = screen.getAllByRole('checkbox');
+    expect(checkboxes.length).toBe(12);
+
+    // Click the 11th checkbox (index 10) to select it
+    await act(async () => {
+      fireEvent.click(checkboxes[10]);
+    });
+    expect(budgetCounter).toHaveTextContent("11 / 10");
+    expect(proceedBtn).toBeDisabled();
+    expect(screen.getByText(/Budget Exceeded!/i)).toBeInTheDocument();
+
+    // Click the 12th checkbox (index 11) to select it too (total 12)
+    await act(async () => {
+      fireEvent.click(checkboxes[11]);
+    });
+    expect(budgetCounter).toHaveTextContent("12 / 10");
+
+    // Deselect index 0, index 1, index 2 (now 9/10 selected)
+    await act(async () => {
+      fireEvent.click(checkboxes[0]);
+      fireEvent.click(checkboxes[1]);
+      fireEvent.click(checkboxes[2]);
+    });
+    expect(budgetCounter).toHaveTextContent("9 / 10");
+    expect(proceedBtn).not.toBeDisabled();
+    expect(screen.queryByText(/Budget Exceeded!/i)).not.toBeInTheDocument();
+
+    // Click "Select Top 10 by Relevance" helper button to reset selection to top 10
+    const selectTopBtn = screen.getByRole('button', { name: /Select Top 10 by Relevance/i });
+    await act(async () => {
+      fireEvent.click(selectTopBtn);
+    });
+    expect(budgetCounter).toHaveTextContent("10 / 10");
+    expect(proceedBtn).not.toBeDisabled();
   });
 });

@@ -166,6 +166,7 @@ function App() {
   const [isRanking, setIsRanking] = useState(false);
   const [rankingError, setRankingError] = useState<string | null>(null);
   const [attemptedRanking, setAttemptedRanking] = useState(false);
+  const [selectedFactIds, setSelectedFactIds] = useState<Set<string>>(new Set());
 
   // 1. Connection check and initial retrieval
   useEffect(() => {
@@ -354,11 +355,37 @@ function App() {
       }
       const data = await response.json();
       setRankingResults(data);
+      // Auto-select top 10 facts by default
+      const sortedByScore = [...data]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 10);
+      setSelectedFactIds(new Set(sortedByScore.map(r => r.fact.id).filter(Boolean)));
     } catch (err: any) {
       setRankingError(err.message || 'Relevance ranking failed.');
     } finally {
       setIsRanking(false);
     }
+  };
+
+  // --- CONTENT BUDGET SELECTION HANDLERS ---
+
+  const handleToggleFactSelection = (factId: string) => {
+    setSelectedFactIds(prev => {
+      const next = new Set(prev);
+      if (next.has(factId)) {
+        next.delete(factId);
+      } else {
+        next.add(factId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectTop10 = () => {
+    const sortedByScore = [...rankingResults]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+    setSelectedFactIds(new Set(sortedByScore.map(r => r.fact.id).filter(Boolean)));
   };
 
   // --- DRAFT CHECKLIST CRUD METHODS ---
@@ -1339,6 +1366,45 @@ function App() {
                     </div>
                   ) : (
                     <div>
+                      {/* Content Budget Tracker Widget */}
+                      <div className="budget-tracker-box" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '500', color: 'white' }}>
+                            Allocated Accomplishments: <strong style={{ color: selectedFactIds.size > 10 ? '#ef4444' : '#c084fc', fontSize: '14px' }}>{selectedFactIds.size} / 10</strong>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleSelectTop10}
+                            className="btn btn-secondary"
+                            style={{ padding: '4px 10px', fontSize: '12px' }}
+                          >
+                            Select Top 10 by Relevance
+                          </button>
+                        </div>
+                        
+                        {/* Progress Bar Container */}
+                        <div style={{ background: 'rgba(255, 255, 255, 0.08)', height: '6px', borderRadius: '3px', overflow: 'hidden', marginBottom: '10px' }}>
+                          <div style={{
+                            width: `${Math.min((selectedFactIds.size / 10) * 100, 100)}%`,
+                            height: '100%',
+                            background: selectedFactIds.size > 10 ? '#ef4444' : 'var(--accent)',
+                            borderRadius: '3px',
+                            transition: 'width 0.3s ease, background-color 0.3s ease'
+                          }}></div>
+                        </div>
+
+                        {selectedFactIds.size > 10 && (
+                          <div style={{ color: '#f87171', fontSize: '11.5px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: '4px', padding: '8px' }}>
+                            <span>⚠️ <strong>Budget Exceeded!</strong> Single-page compilation threshold exceeded. Please deselect some achievements.</span>
+                          </div>
+                        )}
+                        {selectedFactIds.size === 0 && (
+                          <div style={{ color: '#9ca3af', fontSize: '11.5px', background: 'rgba(255, 255, 255, 0.01)', border: '1px solid rgba(255, 255, 255, 0.04)', borderRadius: '4px', padding: '8px' }}>
+                            <span>Select at least 1 accomplishment to begin tailoring.</span>
+                          </div>
+                        )}
+                      </div>
+
                       {/* Debug Matching Keyword Log */}
                       <div className="debug-keyword-log" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '6px', padding: '12px', marginBottom: '16px' }}>
                         <h4 style={{ margin: '0 0 8px 0', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent)' }}>
@@ -1375,34 +1441,73 @@ function App() {
                           }
 
                           return (
-                            <div key={idx} className="card-item" style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                <span style={{ fontSize: '11px', textTransform: 'uppercase', opacity: 0.6, letterSpacing: '0.05em' }}>
-                                  {getParentName(result.fact)}
-                                </span>
-                                <span style={{ color: badgeColor, background: badgeBg, padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
-                                  Match: {scorePercent}%
-                                </span>
-                              </div>
-                              <p style={{ margin: '0 0 10px 0', fontSize: '13.5px', color: 'white', lineHeight: '1.4' }}>
-                                <strong>{result.fact.action}</strong>
-                                {result.fact.metric_result && ` (${result.fact.metric_result})`}
-                              </p>
-                              
-                              {/* Match Keywords Cloud */}
-                              {result.matched_keywords.length > 0 && (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                  {result.matched_keywords.map((k: string) => (
-                                    <span key={k} style={{ background: 'rgba(74, 222, 128, 0.1)', border: '1px solid rgba(74, 222, 128, 0.2)', color: '#a7f3d0', padding: '1px 6px', borderRadius: '4px', fontSize: '10px' }}>
-                                      {k}
-                                    </span>
-                                  ))}
+                            <div
+                              key={idx}
+                              className={`card-item fact-selection-card ${selectedFactIds.has(result.fact.id) ? 'selected' : ''}`}
+                              onClick={() => handleToggleFactSelection(result.fact.id)}
+                              style={{
+                                padding: '16px',
+                                background: selectedFactIds.has(result.fact.id) ? 'rgba(170, 59, 255, 0.04)' : 'rgba(255,255,255,0.02)',
+                                border: selectedFactIds.has(result.fact.id) ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.05)',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                                display: 'flex',
+                                gap: '12px',
+                                alignItems: 'flex-start',
+                                textAlign: 'left'
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedFactIds.has(result.fact.id)}
+                                onChange={() => {}} // handled by wrapper container click
+                                style={{ marginTop: '4px', cursor: 'pointer' }}
+                              />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                  <span style={{ fontSize: '11px', textTransform: 'uppercase', opacity: 0.6, letterSpacing: '0.05em' }}>
+                                    {getParentName(result.fact)}
+                                  </span>
+                                  <span style={{ color: badgeColor, background: badgeBg, padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                                    Match: {scorePercent}%
+                                  </span>
                                 </div>
-                              )}
+                                <p style={{ margin: '0 0 10px 0', fontSize: '13.5px', color: 'white', lineHeight: '1.4' }}>
+                                  <strong>{result.fact.action}</strong>
+                                  {result.fact.metric_result && ` (${result.fact.metric_result})`}
+                                </p>
+                                
+                                {/* Match Keywords Cloud */}
+                                {result.matched_keywords.length > 0 && (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                    {result.matched_keywords.map((k: string) => (
+                                      <span key={k} style={{ background: 'rgba(74, 222, 128, 0.1)', border: '1px solid rgba(74, 222, 128, 0.2)', color: '#a7f3d0', padding: '1px 6px', borderRadius: '4px', fontSize: '10px' }}>
+                                        {k}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           );
                         })}
                       </div>
+
+                      {/* Proceed to Generation Button */}
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={selectedFactIds.size === 0 || selectedFactIds.size > 10}
+                        style={{
+                          width: '100%',
+                          padding: '14px',
+                          marginTop: '20px',
+                          fontWeight: 'bold',
+                          fontSize: '15px'
+                        }}
+                      >
+                        Proceed to Bullet Synthesis
+                      </button>
                     </div>
                   )}
                 </div>
