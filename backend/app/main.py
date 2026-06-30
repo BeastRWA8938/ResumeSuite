@@ -4,6 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.persistence.db import init_db
 from app.api.profile import router as profile_router
 from app.api.education import router as education_router
+from app.api.work_experience import router as work_experience_router
+from app.api.project import router as project_router
+from app.api.hackathon import router as hackathon_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,6 +38,9 @@ app.add_middleware(
 # Register endpoints routers
 app.include_router(profile_router)
 app.include_router(education_router)
+app.include_router(work_experience_router)
+app.include_router(project_router)
+app.include_router(hackathon_router)
 
 @app.get("/")
 def read_root():

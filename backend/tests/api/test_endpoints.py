@@ -4,7 +4,10 @@ from sqlmodel import SQLModel, Session, create_engine
 from sqlalchemy.pool import StaticPool
 from app.main import app
 from app.persistence.db import get_session
-from app.persistence.models import ProfileTable, EducationTable
+from app.persistence.models import (
+    ProfileTable, EducationTable,
+    WorkExperienceTable, ProjectTable, HackathonTable
+)
 
 # Configure in-memory SQLite for isolated API endpoint testing
 # Use StaticPool to maintain a single connection across FastAPI requests
@@ -106,3 +109,125 @@ def test_profile_and_education_endpoints_workflow():
     response = client.get(f"/api/education/profile/{profile_id}")
     assert response.status_code == 200
     assert len(response.json()) == 0
+
+    # 9. POST work-experience - expected 201 (created)
+    exp_data = {
+        "employer": "Acme Corp",
+        "role": "Software Engineer",
+        "location": "Boston, MA",
+        "start_date": "2020-01",
+        "end_date": "Present",
+        "description": "Built cloud backend.",
+        "profile_id": profile_id
+    }
+    response = client.post("/api/work-experience", json=exp_data)
+    assert response.status_code == 201
+    exp = response.json()
+    assert exp["employer"] == "Acme Corp"
+    exp_id = exp["id"]
+
+    # 10. GET work-experience by profile - expected 200 (ok)
+    response = client.get(f"/api/work-experience/profile/{profile_id}")
+    assert response.status_code == 200
+    exps = response.json()
+    assert len(exps) == 1
+    assert exps[0]["id"] == exp_id
+
+    # 11. PUT work-experience - expected 200 (ok)
+    exp_update = {
+        "employer": "Acme Corp",
+        "role": "Senior Software Engineer",
+        "location": "Boston, MA",
+        "start_date": "2020-01",
+        "end_date": "Present",
+        "description": "Built scalable cloud backend.",
+        "profile_id": profile_id
+    }
+    response = client.put(f"/api/work-experience/{exp_id}", json=exp_update)
+    assert response.status_code == 200
+    assert response.json()["role"] == "Senior Software Engineer"
+
+    # 12. DELETE work-experience - expected 200 (ok)
+    response = client.delete(f"/api/work-experience/{exp_id}")
+    assert response.status_code == 200
+    assert response.json() == {"success": True, "detail": "Work experience record deleted"}
+
+    # 13. POST project - expected 201 (created)
+    proj_data = {
+        "name": "ResumeTailor",
+        "description": "Fast resume synthesis.",
+        "start_date": "2023-01",
+        "end_date": "2023-05",
+        "url": "https://github.com/example/resumetailor",
+        "profile_id": profile_id
+    }
+    response = client.post("/api/project", json=proj_data)
+    assert response.status_code == 201
+    proj = response.json()
+    assert proj["name"] == "ResumeTailor"
+    proj_id = proj["id"]
+
+    # 14. GET project by profile - expected 200 (ok)
+    response = client.get(f"/api/project/profile/{profile_id}")
+    assert response.status_code == 200
+    projs = response.json()
+    assert len(projs) == 1
+    assert projs[0]["id"] == proj_id
+
+    # 15. PUT project - expected 200 (ok)
+    proj_update = {
+        "name": "ResumeTailor Pro",
+        "description": "Synthesize resumes in seconds.",
+        "start_date": "2023-01",
+        "end_date": "2023-06",
+        "url": "https://github.com/example/resumetailor",
+        "profile_id": profile_id
+    }
+    response = client.put(f"/api/project/{proj_id}", json=proj_update)
+    assert response.status_code == 200
+    assert response.json()["name"] == "ResumeTailor Pro"
+
+    # 16. DELETE project - expected 200 (ok)
+    response = client.delete(f"/api/project/{proj_id}")
+    assert response.status_code == 200
+    assert response.json() == {"success": True, "detail": "Project record deleted"}
+
+    # 17. POST hackathon - expected 201 (created)
+    hack_data = {
+        "name": "MIT Hackathon 2024",
+        "organization": "MIT",
+        "date": "2024-02",
+        "role_placement": "1st Place",
+        "description": "Built AI agent.",
+        "profile_id": profile_id
+    }
+    response = client.post("/api/hackathon", json=hack_data)
+    assert response.status_code == 201
+    hack = response.json()
+    assert hack["name"] == "MIT Hackathon 2024"
+    hack_id = hack["id"]
+
+    # 18. GET hackathon by profile - expected 200 (ok)
+    response = client.get(f"/api/hackathon/profile/{profile_id}")
+    assert response.status_code == 200
+    hacks = response.json()
+    assert len(hacks) == 1
+    assert hacks[0]["id"] == hack_id
+
+    # 19. PUT hackathon - expected 200 (ok)
+    hack_update = {
+        "name": "MIT Hackathon 2024",
+        "organization": "MIT & Harvard",
+        "date": "2024-02",
+        "role_placement": "Grand Prize Winner",
+        "description": "Built cooperative multi-agent system.",
+        "profile_id": profile_id
+    }
+    response = client.put(f"/api/hackathon/{hack_id}", json=hack_update)
+    assert response.status_code == 200
+    assert response.json()["organization"] == "MIT & Harvard"
+
+    # 20. DELETE hackathon - expected 200 (ok)
+    response = client.delete(f"/api/hackathon/{hack_id}")
+    assert response.status_code == 200
+    assert response.json() == {"success": True, "detail": "Hackathon record deleted"}

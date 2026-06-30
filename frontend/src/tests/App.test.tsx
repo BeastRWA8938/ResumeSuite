@@ -4,17 +4,38 @@ import App from '../App';
 
 describe('App Dashboard Component', () => {
   beforeEach(() => {
-    // Mock global fetch to return a healthy API payload
-    vi.stubGlobal('fetch', vi.fn().mockImplementation(() =>
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
+    // Mock global fetch to handle health check and API resources dynamically
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      let data = {};
+      if (url.endsWith('/api/profile')) {
+        data = {
+          id: "test-profile-uuid",
+          name: "Rushikesh",
+          email: "rush@example.com",
+          phone: "+1234567890",
+          location: "Boston, MA"
+        };
+      } else if (url.includes('/api/education/profile/')) {
+        data = [];
+      } else if (url.includes('/api/work-experience/profile/')) {
+        data = [];
+      } else if (url.includes('/api/project/profile/')) {
+        data = [];
+      } else if (url.includes('/api/hackathon/profile/')) {
+        data = [];
+      } else {
+        data = {
           status: "healthy",
           service: "Career Intelligence System API",
           version: "1.0.0"
-        }),
-      })
-    ));
+        };
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(data),
+      });
+    }));
   });
 
   it('renders the main brand heading', async () => {

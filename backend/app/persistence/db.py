@@ -16,7 +16,10 @@ engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=False)
 def init_db() -> None:
     """Creates database tables defined by SQLModel if they do not exist."""
     # Import models here to ensure metadata is registered before creation
-    from app.persistence.models import ProfileTable, EducationTable
+    from app.persistence.models import (
+        ProfileTable, EducationTable,
+        WorkExperienceTable, ProjectTable, HackathonTable
+    )
     SQLModel.metadata.create_all(engine)
 
 def get_session() -> Generator[Session, None, None]:
