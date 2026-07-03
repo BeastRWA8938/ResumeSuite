@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 
 interface BackendHealth {
@@ -515,7 +515,7 @@ function App() {
 
   // --- CRUD SUBMIT & SAVE CONTROLLERS ---
 
-  const handleSaveProfile = async (e: FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaveProfileError(null);
     try {
@@ -533,7 +533,7 @@ function App() {
     }
   };
 
-  const handleSaveEducation = async (e: FormEvent) => {
+  const handleSaveEducation = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaveEduError(null);
     if (!profile?.id) return;
@@ -559,7 +559,7 @@ function App() {
     }
   };
 
-  const handleSaveExperience = async (e: FormEvent) => {
+  const handleSaveExperience = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaveExpError(null);
     if (!profile?.id) return;
@@ -593,7 +593,7 @@ function App() {
     }
   };
 
-  const handleSaveProject = async (e: FormEvent) => {
+  const handleSaveProject = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaveProjError(null);
     if (!profile?.id) return;
@@ -627,7 +627,7 @@ function App() {
     }
   };
 
-  const handleSaveHackathon = async (e: FormEvent) => {
+  const handleSaveHackathon = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaveHackError(null);
     if (!profile?.id) return;
