@@ -182,6 +182,9 @@ function App() {
   const [copied, setCopied] = useState(false);
   const [saveWarning, setSaveWarning] = useState<string | null>(null);
 
+  // Description expand/collapse state
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({});
+
   // 1. Connection check and initial retrieval
   useEffect(() => {
     const runStartupChecks = async () => {
@@ -479,6 +482,13 @@ function App() {
     navigator.clipboard.writeText(latexCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const toggleDescription = (id: string) => {
+    setExpandedDescriptions(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
   };
 
   // --- DRAFT CHECKLIST CRUD METHODS ---
@@ -1060,7 +1070,30 @@ function App() {
                         <button onClick={() => handleDeleteExperience(exp.id)} className="btn btn-danger" style={{ padding: '6px 12px', fontSize: '13px' }}>Delete</button>
                       </div>
                     </div>
-                    <p style={{ margin: '8px 0', fontSize: '14px', whiteSpace: 'pre-wrap', color: 'var(--text-h)', opacity: 0.8 }}>{exp.description}</p>
+                    <p style={{ margin: '8px 0', fontSize: '14px', whiteSpace: 'pre-wrap', color: 'var(--text-h)', opacity: 0.8 }}>
+                      {exp.description.length <= 200 || expandedDescriptions[exp.id]
+                        ? exp.description
+                        : `${exp.description.slice(0, 200)}...`}
+                      {exp.description.length > 200 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleDescription(exp.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--accent)',
+                            cursor: 'pointer',
+                            padding: 0,
+                            marginLeft: '8px',
+                            textDecoration: 'underline',
+                            fontSize: '13px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {expandedDescriptions[exp.id] ? 'Show less' : 'Show more'}
+                        </button>
+                      )}
+                    </p>
                     
                     {/* Render Linked Atomic Facts */}
                     <div className="linked-facts-box" style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
@@ -1189,7 +1222,30 @@ function App() {
                         <button onClick={() => handleDeleteProject(proj.id)} className="btn btn-danger" style={{ padding: '6px 12px', fontSize: '13px' }}>Delete</button>
                       </div>
                     </div>
-                    <p style={{ margin: '8px 0', fontSize: '14px', whiteSpace: 'pre-wrap', color: 'var(--text-h)', opacity: 0.8 }}>{proj.description}</p>
+                    <p style={{ margin: '8px 0', fontSize: '14px', whiteSpace: 'pre-wrap', color: 'var(--text-h)', opacity: 0.8 }}>
+                      {proj.description.length <= 200 || expandedDescriptions[proj.id]
+                        ? proj.description
+                        : `${proj.description.slice(0, 200)}...`}
+                      {proj.description.length > 200 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleDescription(proj.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--accent)',
+                            cursor: 'pointer',
+                            padding: 0,
+                            marginLeft: '8px',
+                            textDecoration: 'underline',
+                            fontSize: '13px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {expandedDescriptions[proj.id] ? 'Show less' : 'Show more'}
+                        </button>
+                      )}
+                    </p>
                     
                     {/* Render Linked Atomic Facts */}
                     <div className="linked-facts-box" style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
@@ -1318,7 +1374,30 @@ function App() {
                         <button onClick={() => handleDeleteHackathon(hack.id)} className="btn btn-danger" style={{ padding: '6px 12px', fontSize: '13px' }}>Delete</button>
                       </div>
                     </div>
-                    <p style={{ margin: '8px 0', fontSize: '14px', whiteSpace: 'pre-wrap', color: 'var(--text-h)', opacity: 0.8 }}>{hack.description}</p>
+                    <p style={{ margin: '8px 0', fontSize: '14px', whiteSpace: 'pre-wrap', color: 'var(--text-h)', opacity: 0.8 }}>
+                      {hack.description.length <= 200 || expandedDescriptions[hack.id]
+                        ? hack.description
+                        : `${hack.description.slice(0, 200)}...`}
+                      {hack.description.length > 200 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleDescription(hack.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--accent)',
+                            cursor: 'pointer',
+                            padding: 0,
+                            marginLeft: '8px',
+                            textDecoration: 'underline',
+                            fontSize: '13px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {expandedDescriptions[hack.id] ? 'Show less' : 'Show more'}
+                        </button>
+                      )}
+                    </p>
                     
                     {/* Render Linked Atomic Facts */}
                     <div className="linked-facts-box" style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
