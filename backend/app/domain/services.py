@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
-from app.domain.schemas import AtomicFact, AtomicFactMerge, FactRankResult, ResumeSynthesisResponse
+from app.domain.schemas import (
+    AtomicFact, AtomicFactMerge, FactRankResult, ResumeSynthesisResponse,
+    Profile, Education, WorkExperience, Project, Hackathon
+)
 
 class FactExtractionService(ABC):
     """Abstract Interface for parsing raw paragraphs into structured Atomic Facts."""
@@ -45,5 +48,28 @@ class ResumeSynthesisService(ABC):
         """
         Synthesizes selected accomplishments into high-impact bullet points (STAR / Google XYZ),
         and prioritizes/categorizes skills into prioritized matching categories.
+        """
+        pass
+
+
+from uuid import UUID
+
+class LaTeXGenerationService(ABC):
+    """Abstract Interface for rendering a LaTeX resume document."""
+
+    @abstractmethod
+    def generate_latex_resume(
+        self,
+        profile: Profile,
+        education_list: List[Education],
+        experiences: List[WorkExperience],
+        projects: List[Project],
+        hackathons: List[Hackathon],
+        selected_facts: List[AtomicFact],
+        synthesized_bullets: dict[UUID, str],
+        prioritized_skills: dict[str, List[str]]
+    ) -> str:
+        """
+        Injects all resume assets and custom STAR bullet points into Jake's Resume LaTeX template.
         """
         pass

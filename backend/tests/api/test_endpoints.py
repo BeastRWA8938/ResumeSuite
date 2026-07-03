@@ -483,4 +483,22 @@ def test_profile_and_education_endpoints_workflow():
         assert "Languages" in synthesized_data["skills"]
         assert synthesized_data["skills"]["Languages"] == ["Python"]
 
+    # 29. POST resume/generate - expected 200 (ok)
+    payload = {
+        "selected_fact_ids": [str(first_fact_id)],
+        "synthesized_bullets": {
+            str(first_fact_id): "Designed database query optimizations reducing latency by 30%."
+        },
+        "prioritized_skills": {
+            "Languages": ["Python", "SQL"],
+            "Frameworks": ["FastAPI"]
+        }
+    }
+    response = client.post("/api/resume/generate", json=payload)
+    assert response.status_code == 200
+    gen_data = response.json()
+    assert "latex_code" in gen_data
+    assert "Rushikesh" in gen_data["latex_code"]
+    assert "Designed database query optimizations" in gen_data["latex_code"]
+
 

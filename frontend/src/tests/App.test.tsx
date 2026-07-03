@@ -29,6 +29,10 @@ describe('App Dashboard Component', () => {
         data = [];
       } else if (url.includes('/api/fact/hackathon/')) {
         data = [];
+      } else if (url.includes('/api/resume/generate')) {
+        data = {
+          latex_code: "Generated mock LaTeX source containing Rushikesh and custom synthesized achievement."
+        };
       } else if (url.includes('/api/resume/synthesize')) {
         data = {
           bullets: [
@@ -257,5 +261,33 @@ describe('App Dashboard Component', () => {
 
     const skillTexts = screen.getAllByText(/TypeScript/i);
     expect(skillTexts.length).toBeGreaterThan(0);
+
+    // Click LaTeX generation button
+    const generateBtn = screen.getByRole('button', { name: /Generate LaTeX Resume Source/i });
+    expect(generateBtn).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(generateBtn);
+    });
+
+    // Check that generated source is rendered
+    const latexCodeSnippet = await screen.findByText(/Generated mock LaTeX source/i);
+    expect(latexCodeSnippet).toBeInTheDocument();
+
+    const copyBtn = screen.getByRole('button', { name: /Copy to Clipboard/i });
+    expect(copyBtn).toBeInTheDocument();
+
+    // Stub clipboard API
+    const writeTextMock = vi.fn();
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextMock
+      }
+    });
+
+    await act(async () => {
+      fireEvent.click(copyBtn);
+    });
+    expect(writeTextMock).toHaveBeenCalledWith(expect.stringContaining("Generated mock LaTeX source"));
   });
 });

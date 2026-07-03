@@ -175,6 +175,12 @@ function App() {
   const [synthesisError, setSynthesisError] = useState<string | null>(null);
   const [attemptedSynthesis, setAttemptedSynthesis] = useState(false);
 
+  // LaTeX Generation states
+  const [latexCode, setLatexCode] = useState('');
+  const [isGeneratingLatex, setIsGeneratingLatex] = useState(false);
+  const [generateLatexError, setGenerateLatexError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
   // 1. Connection check and initial retrieval
   useEffect(() => {
     const runStartupChecks = async () => {
@@ -432,6 +438,40 @@ function App() {
     } finally {
       setIsSynthesizing(false);
     }
+  };
+
+  const handleGenerateLaTeX = async () => {
+    setIsGeneratingLatex(true);
+    setGenerateLatexError(null);
+    try {
+      const response = await fetch('http://localhost:8000/api/resume/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selected_fact_ids: Array.from(selectedFactIds),
+          synthesized_bullets: synthesizedBullets,
+          prioritized_skills: prioritizedSkills
+        })
+      });
+
+      if (!response.ok) {
+        const errorDetail = await response.json();
+        throw new Error(errorDetail.detail || 'LaTeX generation failed');
+      }
+
+      const data = await response.json();
+      setLatexCode(data.latex_code || '');
+    } catch (err: any) {
+      setGenerateLatexError(err.message || 'Failed to generate LaTeX resume.');
+    } finally {
+      setIsGeneratingLatex(false);
+    }
+  };
+
+  const handleCopyClipboard = () => {
+    navigator.clipboard.writeText(latexCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   // --- DRAFT CHECKLIST CRUD METHODS ---
@@ -1623,6 +1663,91 @@ function App() {
                     </div>
 
                   </div>
+                </div>
+              )}
+
+              {/* LaTeX Generation & Copy Export Section */}
+              {attemptedSynthesis && Object.keys(synthesizedBullets).length > 0 && (
+                <div className="card-item" style={{ marginTop: '24px', padding: '24px' }}>
+                  <h3 style={{ margin: '0 0 16px 0', borderBottom: '2px solid var(--accent)', paddingBottom: '8px', color: 'white' }}>
+                    LaTeX Resume Document Export
+                  </h3>
+                  <p style={{ fontSize: '13px', opacity: 0.8, marginBottom: '16px' }}>
+                    Inject the synthesized accomplishments and prioritized skills categories into the professional Jake's Resume LaTeX template.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={handleGenerateLaTeX}
+                    className="btn btn-primary"
+                    disabled={isGeneratingLatex}
+                    style={{
+                      padding: '12px 24px',
+                      fontWeight: 'bold',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    {isGeneratingLatex ? (
+                      <>
+                        <span className="spinner"></span> Generating LaTeX Code...
+                      </>
+                    ) : 'Generate LaTeX Resume Source'}
+                  </button>
+
+                  {generateLatexError && (
+                    <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', color: '#f87171', fontSize: '13px' }}>
+                      {generateLatexError}
+                    </div>
+                  )}
+
+                  {latexCode && (
+                    <div style={{ marginTop: '20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '12px', color: '#d8b4fe', fontWeight: 'bold' }}>
+                          jakes_resume.tex (LaTeX Source)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleCopyClipboard}
+                          className="btn"
+                          style={{
+                            background: copied ? 'rgba(74, 222, 128, 0.15)' : 'rgba(134, 59, 255, 0.15)',
+                            border: copied ? '1px solid #4ade80' : '1px solid var(--accent)',
+                            color: copied ? '#4ade80' : 'white',
+                            padding: '6px 12px',
+                            fontSize: '12.5px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          {copied ? 'Copied!' : 'Copy to Clipboard'}
+                        </button>
+                      </div>
+                      <textarea
+                        readOnly
+                        value={latexCode}
+                        rows={16}
+                        style={{
+                          width: '100%',
+                          background: 'rgba(0, 0, 0, 0.3)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '6px',
+                          padding: '12px',
+                          color: '#c084fc',
+                          fontFamily: 'monospace',
+                          fontSize: '12.5px',
+                          lineHeight: '1.5',
+                          outline: 'none',
+                          resize: 'vertical'
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </section>
