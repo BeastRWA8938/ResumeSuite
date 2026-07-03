@@ -139,5 +139,19 @@ class ResumeSynthesisResponse(BaseModel):
     skills: dict[str, list[str]] = {}
 
 
+# --- GENERATION HISTORY SCHEMAS ---
+
+class HistoryEntryCreate(BaseModel):
+    company_name: str
+    job_role: str
+    timestamp: str
+    file_path: str
+    matched_keywords: list[str]
+
+class HistoryEntry(HistoryEntryCreate):
+    id: UUID
+    model_config = ConfigDict(from_attributes=True)
+
+
 
 

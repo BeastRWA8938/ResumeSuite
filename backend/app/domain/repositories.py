@@ -7,7 +7,8 @@ from app.domain.schemas import (
     WorkExperience, WorkExperienceCreate,
     Project, ProjectCreate,
     Hackathon, HackathonCreate,
-    AtomicFact, AtomicFactCreate, AtomicFactMerge
+    AtomicFact, AtomicFactCreate, AtomicFactMerge,
+    HistoryEntry, HistoryEntryCreate
 )
 
 class ProfileRepository(ABC):
@@ -184,6 +185,20 @@ class AtomicFactRepository(ABC):
         Processes a checklist of new and updated facts, merging them into SQLite.
         parent_type must be one of: 'work_experience', 'project', 'hackathon'.
         """
+        pass
+
+
+class HistoryRepository(ABC):
+    """Abstract Interface for managing Tailoring Session Generation History Logs."""
+
+    @abstractmethod
+    def save(self, entry: HistoryEntryCreate) -> HistoryEntry:
+        """Saves a new resume generation history log entry."""
+        pass
+
+    @abstractmethod
+    def get_all(self) -> List[HistoryEntry]:
+        """Retrieves all historical generation logs, ordered chronologically descending."""
         pass
 
 

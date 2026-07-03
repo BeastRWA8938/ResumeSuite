@@ -4,19 +4,20 @@ from uuid import UUID
 from app.domain.repositories import (
     ProfileRepository, EducationRepository, 
     WorkExperienceRepository, ProjectRepository, HackathonRepository,
-    AtomicFactRepository
+    AtomicFactRepository, HistoryRepository
 )
 from app.domain.schemas import (
     Profile, ProfileCreate, Education, EducationCreate,
     WorkExperience, WorkExperienceCreate,
     Project, ProjectCreate,
     Hackathon, HackathonCreate,
-    AtomicFact, AtomicFactCreate, AtomicFactMerge
+    AtomicFact, AtomicFactCreate, AtomicFactMerge,
+    HistoryEntry, HistoryEntryCreate
 )
 from app.persistence.models import (
     ProfileTable, EducationTable,
     WorkExperienceTable, ProjectTable, HackathonTable,
-    AtomicFactTable
+    AtomicFactTable, HistoryTable
 )
 
 class SQLProfileRepository(ProfileRepository):
@@ -402,5 +403,48 @@ class SQLAtomicFactRepository(AtomicFactRepository):
             self.session.refresh(entity)
 
         return [self._to_schema(item) for item in merged_entities]
+
+
+class SQLHistoryRepository(HistoryRepository):
+    """SQLModel concrete implementation of HistoryRepository."""
+
+    def __init__(self, session: Session):
+        self.session = session
+
+    def _to_schema(self, db_history: HistoryTable) -> HistoryEntry:
+        keywords = []
+        if db_history.matched_keywords:
+            try:
+                keywords = json.loads(db_history.matched_keywords)
+            except Exception:
+                keywords = []
+        return HistoryEntry(
+            id=db_history.id,
+            company_name=db_history.company_name,
+            job_role=db_history.job_role,
+            timestamp=db_history.timestamp,
+            file_path=db_history.file_path,
+            matched_keywords=keywords
+        )
+
+    def save(self, entry: HistoryEntryCreate) -> HistoryEntry:
+        """Persists a new tailoring history entry in SQLite."""
+        db_history = HistoryTable(
+            company_name=entry.company_name,
+            job_role=entry.job_role,
+            timestamp=entry.timestamp,
+            file_path=entry.file_path,
+            matched_keywords=json.dumps(entry.matched_keywords)
+        )
+        self.session.add(db_history)
+        self.session.commit()
+        self.session.refresh(db_history)
+        return self._to_schema(db_history)
+
+    def get_all(self) -> List[HistoryEntry]:
+        """Retrieves all history logs ordered chronologically descending (latest first)."""
+        statement = select(HistoryTable).order_by(HistoryTable.id.desc())
+        db_entries = self.session.exec(statement).all()
+        return [self._to_schema(item) for item in db_entries]
 
 

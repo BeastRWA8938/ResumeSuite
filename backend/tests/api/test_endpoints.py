@@ -492,7 +492,9 @@ def test_profile_and_education_endpoints_workflow():
         "prioritized_skills": {
             "Languages": ["Python", "SQL"],
             "Frameworks": ["FastAPI"]
-        }
+        },
+        "company_name": "Google",
+        "job_role": "Staff Software Engineer"
     }
     response = client.post("/api/resume/generate", json=payload)
     assert response.status_code == 200

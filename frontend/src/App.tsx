@@ -180,6 +180,7 @@ function App() {
   const [isGeneratingLatex, setIsGeneratingLatex] = useState(false);
   const [generateLatexError, setGenerateLatexError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [saveWarning, setSaveWarning] = useState<string | null>(null);
 
   // 1. Connection check and initial retrieval
   useEffect(() => {
@@ -443,6 +444,7 @@ function App() {
   const handleGenerateLaTeX = async () => {
     setIsGeneratingLatex(true);
     setGenerateLatexError(null);
+    setSaveWarning(null);
     try {
       const response = await fetch('http://localhost:8000/api/resume/generate', {
         method: 'POST',
@@ -450,7 +452,9 @@ function App() {
         body: JSON.stringify({
           selected_fact_ids: Array.from(selectedFactIds),
           synthesized_bullets: synthesizedBullets,
-          prioritized_skills: prioritizedSkills
+          prioritized_skills: prioritizedSkills,
+          company_name: companyContext || 'Unknown Company',
+          job_role: jobDescription ? jobDescription.slice(0, 50) : 'Tailored Role'
         })
       });
 
@@ -461,6 +465,9 @@ function App() {
 
       const data = await response.json();
       setLatexCode(data.latex_code || '');
+      if (data.save_warning) {
+        setSaveWarning(data.save_warning);
+      }
     } catch (err: any) {
       setGenerateLatexError(err.message || 'Failed to generate LaTeX resume.');
     } finally {
@@ -1699,6 +1706,12 @@ function App() {
                   {generateLatexError && (
                     <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', color: '#f87171', fontSize: '13px' }}>
                       {generateLatexError}
+                    </div>
+                  )}
+
+                  {saveWarning && (
+                    <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(249, 115, 22, 0.1)', border: '1px solid rgba(249, 115, 22, 0.2)', borderRadius: '6px', color: '#fb923c', fontSize: '13px', lineHeight: '1.4' }}>
+                      <strong>[!WARNING]</strong> {saveWarning}
                     </div>
                   )}
 

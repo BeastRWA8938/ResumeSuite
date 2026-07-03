@@ -91,3 +91,15 @@ class AtomicFactTable(SQLModel, table=True):
     hackathon_id: Optional[UUID] = Field(default=None, foreign_key="hackathons.id")
 
 
+class HistoryTable(SQLModel, table=True):
+    """Database table definition for Tailoring Session Generation History Logs."""
+    __tablename__ = "history_entries"
+
+    id: UUID = Field(default_factory=generate_uuid7, primary_key=True)
+    company_name: str
+    job_role: str
+    timestamp: str
+    file_path: str
+    matched_keywords: str = Field(description="JSON-serialized list of matched keywords")
+
+
