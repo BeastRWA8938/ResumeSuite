@@ -1139,12 +1139,12 @@ function App() {
                 </div>
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Start Date *</label>
-                    <input type="text" required className="form-control" value={projectForm.start_date} onChange={e => setProjectForm({ ...projectForm, start_date: e.target.value })} placeholder="e.g. 2024-01" />
+                    <label>Start Date</label>
+                    <input type="text" className="form-control" value={projectForm.start_date} onChange={e => setProjectForm({ ...projectForm, start_date: e.target.value })} placeholder="e.g. 2024-01" />
                   </div>
                   <div className="form-group">
-                    <label>End Date *</label>
-                    <input type="text" required className="form-control" value={projectForm.end_date} onChange={e => setProjectForm({ ...projectForm, end_date: e.target.value })} placeholder="e.g. 2024-03" />
+                    <label>End Date</label>
+                    <input type="text" className="form-control" value={projectForm.end_date} onChange={e => setProjectForm({ ...projectForm, end_date: e.target.value })} placeholder="e.g. 2024-03" />
                   </div>
                 </div>
                 <div className="form-group">
@@ -1215,7 +1215,14 @@ function App() {
                     <div className="card-item-header">
                       <div className="card-item-title">
                         <h3>{proj.name}</h3>
-                        <p className="card-item-meta">{proj.start_date} - {proj.end_date} {proj.url ? `| Link: ${proj.url}` : ''}</p>
+                        <p className="card-item-meta">
+                          {proj.start_date || proj.end_date ? (
+                            <>
+                              {proj.start_date && proj.start_date} {proj.start_date && proj.end_date && ' - '} {proj.end_date && proj.end_date}
+                            </>
+                          ) : 'No date specified'}
+                          {proj.url ? ` | Link: ${proj.url}` : ''}
+                        </p>
                       </div>
                       <div className="card-item-actions">
                         <button onClick={() => { setEditingProjId(proj.id); setProjectForm({ name: proj.name, description: proj.description, start_date: proj.start_date, end_date: proj.end_date, url: proj.url || '' }); }} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '13px' }}>Edit</button>

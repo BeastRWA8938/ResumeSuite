@@ -55,8 +55,8 @@ class ProjectTable(SQLModel, table=True):
     id: UUID = Field(default_factory=generate_uuid7, primary_key=True)
     name: str
     description: str
-    start_date: str
-    end_date: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
     url: Optional[str] = None
 
     profile_id: UUID = Field(foreign_key="profiles.id")

@@ -165,7 +165,16 @@ class SimpleLaTeXGenerationService(LaTeXGenerationService):
             
             if bullets:
                 name = latex_escape(proj.name)
-                dates = latex_escape(f"{proj.start_date} -- {proj.end_date}")
+                start_dt = proj.start_date.strip() if proj.start_date else ""
+                end_dt = proj.end_date.strip() if proj.end_date else ""
+                if start_dt and end_dt:
+                    dates = latex_escape(f"{start_dt} -- {end_dt}")
+                elif start_dt:
+                    dates = latex_escape(start_dt)
+                elif end_dt:
+                    dates = latex_escape(end_dt)
+                else:
+                    dates = ""
                 skills_escaped = ", ".join([latex_escape(s) for s in sorted(proj_skills)])
                 skills_str = f" $|$ \\emph{{{skills_escaped}}}" if skills_escaped else ""
                 

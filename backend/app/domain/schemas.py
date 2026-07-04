@@ -65,8 +65,8 @@ class WorkExperience(WorkExperienceBase):
 class ProjectBase(BaseModel):
     name: str = Field(..., min_length=1, description="Name of the project")
     description: str = Field(..., description="Raw unstructured text description of project scope and achievements")
-    start_date: str = Field(..., description="Start date (e.g., YYYY-MM)")
-    end_date: str = Field(..., description="End date (e.g., YYYY-MM)")
+    start_date: Optional[str] = Field(None, description="Start date (e.g., YYYY-MM)")
+    end_date: Optional[str] = Field(None, description="End date (e.g., YYYY-MM)")
     url: Optional[str] = Field(None, description="Optional link to project repository or deployment")
 
 class ProjectCreate(ProjectBase):
